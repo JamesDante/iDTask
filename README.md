@@ -15,14 +15,14 @@ A simplified high-concurrency distributed task scheduler built with Go and Pytho
 
 ```mermaid
 graph LR
-  A[Web Frontend (Next.js)] --> B[API Gateway (Go)]
-  B --> C[Scheduler Service (Go + Python)]
-  C --> D[Worker Nodes (Go)]
-  C --> E[AI Module (Python ML)]
-  C --> F[PostgreSQL (Task DB)]
-  C --> G[Redis (Queue + Cache)]
+  A[Web Frontend - Next.js] --> B[API Gateway - Go]
+  B --> C[Scheduler Service - Go and Python]
+  C --> D[Worker Nodes - Go]
+  C --> E[AI Module - Python ML]
+  C --> F[PostgreSQL - Task DB]
+  C --> G[Redis - Queue and Cache]
   D --> G
-  C --> H[Monitoring (Prometheus + Grafana)]
+  C --> H[Monitoring - Prometheus and Grafana]
   D --> H
 ```
 
