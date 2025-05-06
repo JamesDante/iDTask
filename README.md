@@ -1,6 +1,6 @@
 # iDTask
 
-A simplified high-concurrency distributed task scheduler built with Go and Python, demonstrating microservices architecture, intelligent scheduling, and observability. Ideal for showcasing backend system design in interviews (Google/Microsoft level).
+A simplified high-concurrency distributed task scheduler built with Go and Python, demonstrating microservices architecture, intelligent scheduling, and observability. 
 
 ## 🔧 Tech Stack
 
