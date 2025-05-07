@@ -37,7 +37,7 @@ graph LR
 
 ```bash
 # 1. Start Redis and Postgres (Docker recommended)
-docker-compose up -d
+docker compose up -d
 
 # 2. Run Go services
 cd scheduler && go run main.go
