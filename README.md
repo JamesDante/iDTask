@@ -40,7 +40,7 @@ graph LR
 docker compose up -d
 
 # 2. Run Go services
-cd scheduler && go run main.go
+cd idtask-scheduler && go run api/main.go
 
 # 3. Start Python AI module
 cd ai && python app.py
