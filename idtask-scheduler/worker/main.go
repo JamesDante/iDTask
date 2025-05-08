@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -16,12 +17,19 @@ type Task struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func main() {
-	rdb := redis.NewClient(&redis.Options{
+var (
+	rdb = redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	ctx := context.Background()
+	ctx = context.Background()
+)
 
+func main() {
+	go worker()
+	go pollDelayedTasks()
+}
+
+func worker() {
 	log.Println("Worker started. Waiting for tasks...")
 	for {
 		res, err := rdb.BLPop(ctx, 0*time.Second, "task-queue").Result()
@@ -42,6 +50,28 @@ func main() {
 		}
 
 		executeTask(t)
+	}
+}
+
+func pollDelayedTasks() {
+	ticker := time.NewTicker(1 * time.Second)
+	for range ticker.C {
+		now := time.Now().Unix()
+		tasks, err := rdb.ZRangeByScore(ctx, "delayed_tasks", &redis.ZRangeBy{
+			Min:   "-inf",
+			Max:   fmt.Sprintf("%d", now),
+			Count: 10,
+		}).Result()
+		if err != nil {
+			log.Println("Polling error:", err)
+			continue
+		}
+		for _, taskStr := range tasks {
+			var task Task
+			_ = json.Unmarshal([]byte(taskStr), &task)
+			rdb.ZRem(ctx, "delayed_tasks", taskStr)
+			rdb.LPush(ctx, "task_queue", taskStr)
+		}
 	}
 }
 

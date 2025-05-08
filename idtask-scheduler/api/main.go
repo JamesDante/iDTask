@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"time"
-	"context"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jmoiron/sqlx"
@@ -17,6 +17,8 @@ type Task struct {
 	Type      string    `db:"type" json:"type"`
 	Payload   string    `db:"payload" json:"payload"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Retries   int       `db:"retries" json:"retries"`
+	MaxRetry  int       `db:"maxRetry" json:"max_retry"`
 }
 
 var (
@@ -51,6 +53,7 @@ func main() {
 
 	// Register HTTP handler
 	http.HandleFunc("/tasks", handleTaskSubmit)
+	http.HandleFunc("/delayedtasks", handleDelayedTaskSubmit)
 	log.Println("Server started at :8080")
 	http.ListenAndServe(":8080", nil)
 }
@@ -81,9 +84,40 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Push to Redis queue
-	jobBytes, _ := json.Marshal(t)
+	jobBytes, err := json.Marshal(t)
+	if err != nil {
+		log.Printf("Failed to marshal job: %v", err)
+		return
+	}
 	rdb.RPush(ctx, "task-queue", jobBytes)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(t)
+}
+
+func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var t Task
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	_ = enqueueDelayedTask(t, 5*time.Second)
+}
+
+func enqueueDelayedTask(task Task, delay time.Duration) error {
+
+	jobBytes, err := json.Marshal(task)
+	if err != nil {
+		return err
+	}
+	return rdb.ZAdd(ctx, "delayed_tasks", &redis.Z{
+		Score:  float64(time.Now().Add(delay).Unix()),
+		Member: jobBytes,
+	}).Err()
 }

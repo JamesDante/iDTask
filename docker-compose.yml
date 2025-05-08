@@ -22,7 +22,20 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+  
+  etcd:
+    image: bitnami/etcd:3.5
+    restart: always
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+    ports:
+      - "2379:2379"
+    volumes:
+      - etcddata:/etcd-data
 
 volumes:
+  etcddata:
   pgdata:
   redisdata:
