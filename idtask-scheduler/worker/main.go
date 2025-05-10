@@ -7,34 +7,40 @@ import (
 	"log"
 	"time"
 
+	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
+	"github.com/JamesDante/idtask-scheduler/models"
+
 	"github.com/go-redis/redis/v8"
+	"github.com/jmoiron/sqlx"
 )
 
-type Task struct {
-	ID        int       `json:"id"`
-	Type      string    `json:"type"`
-	Payload   string    `json:"payload"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 var (
-	rdb = redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
+	db  *sqlx.DB
+	rdb *redis.Client
 	ctx = context.Background()
 )
 
 func main() {
+
+	redisclient.Init()
+	rdb = redisclient.GetClient()
+
+	initWorkerMetrics()
+
 	go worker()
 	go pollDelayedTasks()
+
+	select {}
 }
 
 func worker() {
 	log.Println("Worker started. Waiting for tasks...")
 	for {
+		start := time.Now()
 		res, err := rdb.BLPop(ctx, 0*time.Second, "task-queue").Result()
 		if err != nil {
 			log.Printf("Redis error: %v", err)
+			tasksFailed.Inc()
 			continue
 		}
 
@@ -42,14 +48,17 @@ func worker() {
 			continue
 		}
 
-		var t Task
+		var t models.Task
 		err = json.Unmarshal([]byte(res[1]), &t)
 		if err != nil {
 			log.Printf("Invalid task JSON: %v", err)
+			tasksFailed.Inc()
 			continue
 		}
 
-		executeTask(t)
+		processTask(t)
+		tasksExecuted.Inc()
+		taskExecDuration.Observe(time.Since(start).Seconds())
 	}
 }
 
@@ -67,7 +76,7 @@ func pollDelayedTasks() {
 			continue
 		}
 		for _, taskStr := range tasks {
-			var task Task
+			var task models.Task
 			_ = json.Unmarshal([]byte(taskStr), &task)
 			rdb.ZRem(ctx, "delayed_tasks", taskStr)
 			rdb.LPush(ctx, "task_queue", taskStr)
@@ -75,9 +84,50 @@ func pollDelayedTasks() {
 	}
 }
 
-func executeTask(t Task) {
-	log.Printf("[Worker] Executing Task #%d: Type=%s, Payload=%s", t.ID, t.Type, t.Payload)
+func processTask(task models.Task) error {
+	// 幂等键：task-executed:<task-id>
+	key := fmt.Sprintf("task-executed:%s", task.ID)
+
+	// SetNX: set when key not exists
+	success, err := rdb.SetNX(ctx, key, 1, 24*time.Hour).Result()
+	if err != nil {
+		return fmt.Errorf("Redis error: %w", err)
+	}
+
+	if !success {
+		log.Printf("⚠️ Task already executed: %s, skipping\n", task.ID)
+		return nil
+	}
+
+	log.Printf("✅ Executing task %s\n", task.ID)
+	err = executeTask(task)
+
+	if err != nil {
+		rdb.Del(ctx, key)
+		return fmt.Errorf("task failed: %w", err)
+	}
+
+	log.Printf("🎉 Task %s executed successfully\n", task.ID)
+	return nil
+}
+
+func executeTask(t models.Task) error {
+	log.Printf("[Worker] Executing Task #%s: Type=%s, Payload=%s", t.ID, t.Type, t.Payload)
 	// 模拟执行耗时
 	time.Sleep(1 * time.Second)
-	log.Printf("[Worker] Task #%d completed", t.ID)
+	log.Printf("[Worker] Task #%s completed", t.ID)
+
+	logTaskExecution(db, t.ID, "success", "Task completed")
+
+	return nil
+}
+
+func logTaskExecution(db *sqlx.DB, taskID, status, result string) {
+	_, err := db.Exec(`
+        INSERT INTO task_logs (task_id, status, result)
+        VALUES ($1, $2, $3)
+    `, taskID, status, result)
+	if err != nil {
+		log.Printf("⚠️ Failed to log task execution: %v\n", err)
+	}
 }

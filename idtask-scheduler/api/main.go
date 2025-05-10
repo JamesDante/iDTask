@@ -7,19 +7,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/JamesDante/idtask-scheduler/configs"
+	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
+	"github.com/JamesDante/idtask-scheduler/models"
+
 	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
-
-type Task struct {
-	ID        int       `db:"id" json:"id"`
-	Type      string    `db:"type" json:"type"`
-	Payload   string    `db:"payload" json:"payload"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Retries   int       `db:"retries" json:"retries"`
-	MaxRetry  int       `db:"maxRetry" json:"max_retry"`
-}
 
 var (
 	db  *sqlx.DB
@@ -29,9 +25,8 @@ var (
 
 func main() {
 	// Connect Postgres
-	dsn := "host=localhost port=5432 user=postgres password=postgres dbname=tasks sslmode=disable"
 	var err error
-	db, err = sqlx.Connect("postgres", dsn)
+	db, err = sqlx.Connect("postgres", configs.Config.PostgresConnectString)
 	if err != nil {
 		log.Fatalf("Postgres error: %v", err)
 	}
@@ -39,23 +34,30 @@ func main() {
 	// Create table if not exists
 	db.MustExec(`
 		CREATE TABLE IF NOT EXISTS tasks (
-			id SERIAL PRIMARY KEY,
+			id TEXT PRIMARY KEY,
 			type TEXT,
 			payload TEXT,
 			created_at TIMESTAMP DEFAULT NOW()
-		)
+		);
+		
+		CREATE TABLE IF NOT EXISTS task_logs (
+    		id SERIAL PRIMARY KEY,
+    		task_id TEXT NOT NULL,
+    		status TEXT NOT NULL,         -- 'success', 'failed', 'retry'
+    		result TEXT,
+    		executed_at TIMESTAMP DEFAULT now()
+		);
 	`)
 
 	// Connect Redis
-	rdb = redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
+	redisclient.Init()
+	rdb = redisclient.GetClient()
 
 	// Register HTTP handler
 	http.HandleFunc("/tasks", handleTaskSubmit)
 	http.HandleFunc("/delayedtasks", handleDelayedTaskSubmit)
-	log.Println("Server started at :8080")
-	http.ListenAndServe(":8080", nil)
+	log.Printf("Server started at %s", configs.Config.WebApiPort)
+	http.ListenAndServe(configs.Config.WebApiPort, nil)
 }
 
 func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +66,7 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var t Task
+	var t models.Task
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -73,12 +75,15 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	payloadBytes, _ := json.Marshal(t.Payload)
 	t.Payload = string(payloadBytes)
 
+	t.ID = uuid.New().String()
+
 	// Save to DB
 	result := db.QueryRowx(
-		"INSERT INTO tasks(type, payload) VALUES($1, $2) RETURNING id, created_at",
-		t.Type, t.Payload,
+		"INSERT INTO tasks(id, type, payload) VALUES($1, $2, $3) RETURNING created_at",
+		t.ID, t.Type, t.Payload,
 	)
-	if err := result.Scan(&t.ID, &t.CreatedAt); err != nil {
+
+	if err := result.Scan(&t.CreatedAt); err != nil {
 		http.Error(w, "DB error", http.StatusInternalServerError)
 		return
 	}
@@ -101,7 +106,7 @@ func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var t Task
+	var t models.Task
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
@@ -110,7 +115,7 @@ func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = enqueueDelayedTask(t, 5*time.Second)
 }
 
-func enqueueDelayedTask(task Task, delay time.Duration) error {
+func enqueueDelayedTask(task models.Task, delay time.Duration) error {
 
 	jobBytes, err := json.Marshal(task)
 	if err != nil {
