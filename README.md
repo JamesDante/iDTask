@@ -55,6 +55,7 @@ cd frontend && npm install && npm run dev
 * Sub-ms latency queue polling
 * Horizontally scalable worker model
 
+
 ## 📎 License
 
 MIT

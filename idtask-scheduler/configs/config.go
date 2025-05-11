@@ -1,5 +1,9 @@
 package configs
 
+import "time"
+
+var LockTTL = 10 * time.Second
+
 var Config = struct {
 	AIPredictURL          string
 	EtcdAddress           string
@@ -7,7 +11,7 @@ var Config = struct {
 	PostgresConnectString string
 	WebApiPort            string
 }{
-	AIPredictURL:          "http://localhost:5000/predict",
+	AIPredictURL:          "localhost:50051",
 	EtcdAddress:           "localhost:2379",
 	RedisAddress:          "localhost:6379",
 	PostgresConnectString: "host=localhost port=5432 user=postgres password=postgres dbname=tasks sslmode=disable",

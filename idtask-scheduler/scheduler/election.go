@@ -22,16 +22,9 @@ type LeaderElector struct {
 	OnResigned func()
 }
 
-func NewLeaderElector(endpoints []string, electionKey string, id string) (*LeaderElector, error) {
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		return nil, err
-	}
+func NewLeaderElector(cli *clientv3.Client, electionKey string, id string, ttl time.Duration) (*LeaderElector, error) {
 
-	session, err := concurrency.NewSession(cli)
+	session, err := concurrency.NewSession(cli, concurrency.WithTTL(int(ttl.Seconds())))
 	if err != nil {
 		return nil, err
 	}

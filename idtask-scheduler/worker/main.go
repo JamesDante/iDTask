@@ -7,8 +7,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/JamesDante/idtask-scheduler/configs"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/google/uuid"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jmoiron/sqlx"
@@ -26,6 +28,14 @@ func main() {
 	rdb = redisclient.GetClient()
 
 	initWorkerMetrics()
+
+	workerId := generateWorkerID()
+	registry, _ := NewWorkerRegistry([]string{configs.Config.EtcdAddress})
+	err := registry.Register(workerId, configs.LockTTL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer registry.Unregister()
 
 	go worker()
 	go pollDelayedTasks()
@@ -60,6 +70,10 @@ func worker() {
 		tasksExecuted.Inc()
 		taskExecDuration.Observe(time.Since(start).Seconds())
 	}
+}
+
+func generateWorkerID() string {
+	return fmt.Sprintf("worker-%s", uuid.New().String()[:8])
 }
 
 func pollDelayedTasks() {

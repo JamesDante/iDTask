@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package predict;
+
+option go_package = "github.com/JamesDante/idtask-scheduler/internal/aiclient";
+
+service AIPredictor {
+  rpc Predict (PredictRequest) returns (PredictResponse);
+}
+
+message PredictRequest {
+  string task_id = 1;
+  map<string, string> metadata = 2;
+}
+
+message PredictResponse {
+  int32 priority = 1;
+  float estimated_time = 2;
+  string recommended_worker = 3;
+}
