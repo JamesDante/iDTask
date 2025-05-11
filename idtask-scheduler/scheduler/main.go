@@ -14,7 +14,6 @@ import (
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
 	"github.com/google/uuid"
-	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -32,20 +31,20 @@ func main() {
 	aiclient.Init()
 	aic = aiclient.GetClient()
 
-	aiclient.TestConnection()
+	//aiclient.TestConnection()
 
 	ctx := context.Background()
 
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{configs.Config.EtcdAddress},
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	// cli, err := clientv3.New(clientv3.Config{
+	// 	Endpoints:   []string{configs.Config.EtcdAddress},
+	// 	DialTimeout: 5 * time.Second,
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	instanceID := generateInstanceID()
-	le, err := NewLeaderElector(cli, "/scheduler/leader", instanceID, configs.LockTTL)
+	le, err := NewLeaderElector("/scheduler/leader", instanceID, configs.LockTTL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -56,7 +55,7 @@ func main() {
 	le.OnElected = func() {
 		log.Println("Elected leader, starting scheduler")
 
-		watcher, _ := NewWorkerWatcher(cli, "/workers/")
+		watcher, _ := NewWorkerWatcher("/workers/")
 		pool := NewWorkerPool()
 
 		watcher.OnAdd = func(addr string) {

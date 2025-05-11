@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	db  *sqlx.DB
-	rdb *redis.Client
-	ctx = context.Background()
+	db       *sqlx.DB
+	rdb      *redis.Client
+	ctx      = context.Background()
+	workerId string
 )
 
 func main() {
@@ -37,17 +38,17 @@ func main() {
 	}
 	defer registry.Unregister()
 
-	go worker()
+	go consumeTasks()
 	go pollDelayedTasks()
 
 	select {}
 }
 
-func worker() {
+func consumeTasks() {
 	log.Println("Worker started. Waiting for tasks...")
 	for {
 		start := time.Now()
-		res, err := rdb.BLPop(ctx, 0*time.Second, "task-queue").Result()
+		res, err := rdb.BLPop(ctx, 0*time.Second, workerId).Result()
 		if err != nil {
 			log.Printf("Redis error: %v", err)
 			tasksFailed.Inc()

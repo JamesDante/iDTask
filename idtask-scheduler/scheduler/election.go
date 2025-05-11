@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JamesDante/idtask-scheduler/configs"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 )
@@ -22,7 +23,15 @@ type LeaderElector struct {
 	OnResigned func()
 }
 
-func NewLeaderElector(cli *clientv3.Client, electionKey string, id string, ttl time.Duration) (*LeaderElector, error) {
+func NewLeaderElector(electionKey string, id string, ttl time.Duration) (*LeaderElector, error) {
+
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{configs.Config.EtcdAddress},
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	session, err := concurrency.NewSession(cli, concurrency.WithTTL(int(ttl.Seconds())))
 	if err != nil {
