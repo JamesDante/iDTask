@@ -22,7 +22,7 @@ graph LR
   C --> F[PostgreSQL - Task DB]
   C --> G[Redis - Queue and Cache]
   D --> G
-  C --> H[Monitoring - Prometheus and Grafana]
+  C --> H[Monitoring - Prometheus]
   D --> H
 ```
 
