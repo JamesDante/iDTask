@@ -43,10 +43,10 @@ docker compose up -d
 cd idtask-scheduler && go run api/main.go
 
 # 3. Start Python AI module
-cd ai && python app.py
+cd ai-predict-service && python src/server.py
 
 # 4. Launch frontend
-cd frontend && npm install && npm run dev
+cd idtask-client && npm install && npm run dev
 ```
 
 ## 📊 Performance
