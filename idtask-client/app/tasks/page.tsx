@@ -9,14 +9,11 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { apiClient } from "@/lib/api-client";
 import { useState } from "react";
 
-const sampleTasks = [
-  { id: "task-1", status: "Pending", duration: 12 },
-  { id: "task-2", status: "Running", duration: 30 },
-  { id: "task-3", status: "Failed", duration: 7 },
-];
+
+import data from "../dashboard/data.json"
 
 export default function HomePage() {
-  const [tasks, setTasks] = useState(sampleTasks);
+  const [tasks, setTasks] = useState(data);
   const [newTask, setNewTask] = useState({ id: "", status: "Pending", duration: 0 });
 
   const addTask = async () => {
@@ -81,7 +78,7 @@ export default function HomePage() {
           Add Task
         </button>
       </div>
-      <TaskTable data={tasks} />
+      <DataTable data={data} />
     </main>
     </SidebarInset>
   </SidebarProvider>

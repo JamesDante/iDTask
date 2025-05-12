@@ -10,44 +10,24 @@ import (
 	"github.com/JamesDante/idtask-scheduler/configs"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/storage"
+	"github.com/jmoiron/sqlx"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
 
 var (
-	db  *sqlx.DB
 	rdb *redis.Client
 	ctx = context.Background()
+	db  *sqlx.DB
 )
 
 func main() {
 	// Connect Postgres
-	var err error
-	db, err = sqlx.Connect("postgres", configs.Config.PostgresConnectString)
-	if err != nil {
-		log.Fatalf("Postgres error: %v", err)
-	}
-
-	// Create table if not exists
-	db.MustExec(`
-		CREATE TABLE IF NOT EXISTS tasks (
-			id TEXT PRIMARY KEY,
-			type TEXT,
-			payload TEXT,
-			created_at TIMESTAMP DEFAULT NOW()
-		);
-		
-		CREATE TABLE IF NOT EXISTS task_logs (
-    		id SERIAL PRIMARY KEY,
-    		task_id TEXT NOT NULL,
-    		status TEXT NOT NULL,         -- 'success', 'failed', 'retry'
-    		result TEXT,
-    		executed_at TIMESTAMP DEFAULT now()
-		);
-	`)
+	storage.Init()
+	db = storage.GetDB()
 
 	// Connect Redis
 	redisclient.Init()
@@ -116,11 +96,11 @@ func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func enqueueDelayedTask(task models.Task, delay time.Duration) error {
-
 	jobBytes, err := json.Marshal(task)
 	if err != nil {
 		return err
 	}
+
 	return rdb.ZAdd(ctx, "delayed_tasks", &redis.Z{
 		Score:  float64(time.Now().Add(delay).Unix()),
 		Member: jobBytes,
