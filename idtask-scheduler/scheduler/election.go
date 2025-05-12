@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/JamesDante/idtask-scheduler/configs"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 )
@@ -23,15 +22,15 @@ type LeaderElector struct {
 	OnResigned func()
 }
 
-func NewLeaderElector(electionKey string, id string, ttl time.Duration) (*LeaderElector, error) {
+func NewLeaderElector(cli *clientv3.Client, electionKey string, id string, ttl time.Duration) (*LeaderElector, error) {
 
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{configs.Config.EtcdAddress},
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	// cli, err := clientv3.New(clientv3.Config{
+	// 	Endpoints:   []string{configs.Config.EtcdAddress},
+	// 	DialTimeout: 5 * time.Second,
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	session, err := concurrency.NewSession(cli, concurrency.WithTTL(int(ttl.Seconds())))
 	if err != nil {
@@ -66,7 +65,7 @@ func (le *LeaderElector) CampaignLoop(ctx context.Context) {
 			le.OnElected()
 		}
 
-		// 等待 session 过期或取消
+		// wait session expire
 		select {
 		case <-le.Session.Done():
 			log.Println("[election] Leadership lost due to session end")

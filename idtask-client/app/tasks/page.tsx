@@ -4,7 +4,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { DataTable } from "@/components/data-table";
 import { SiteHeader } from "@/components/site-header";
-import { TaskTable } from "@/components/task-table";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { apiClient } from "@/lib/api-client";
 import { useState } from "react";

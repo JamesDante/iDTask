@@ -50,7 +50,7 @@ const data = {
     },
     {
       title: "Analytics",
-      url: "#",
+      url: "dag",
       icon: IconChartBar,
     },
     {
@@ -122,23 +122,6 @@ const data = {
       title: "Search",
       url: "#",
       icon: IconSearch,
-    },
-  ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: IconReport,
-    },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: IconFileWord,
     },
   ],
 }

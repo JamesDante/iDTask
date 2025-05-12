@@ -11,9 +11,11 @@ import (
 	"github.com/JamesDante/idtask-scheduler/configs"
 	"github.com/JamesDante/idtask-scheduler/internal/aiclient"
 	pb "github.com/JamesDante/idtask-scheduler/internal/aiclient/predict"
+	"github.com/JamesDante/idtask-scheduler/internal/etcdclient"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
 	"github.com/google/uuid"
+	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -22,32 +24,38 @@ var (
 	rdb  *redis.Client
 	aic  *aiclient.AIClient
 	pool *WorkerPool
+	etcd *clientv3.Client
 )
 
 func main() {
+
 	redisclient.Init()
 	rdb = redisclient.GetClient()
 
 	aiclient.Init()
 	aic = aiclient.GetClient()
 
-	//aiclient.TestConnection()
+	etcdclient.Init()
+	etcd = etcdclient.GetClient()
 
 	ctx := context.Background()
 
-	// cli, err := clientv3.New(clientv3.Config{
-	// 	Endpoints:   []string{configs.Config.EtcdAddress},
-	// 	DialTimeout: 5 * time.Second,
-	// })
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
 	instanceID := generateInstanceID()
-	le, err := NewLeaderElector("/scheduler/leader", instanceID, configs.LockTTL)
+	le, err := NewLeaderElector(etcd, "/scheduler/leader", instanceID, configs.LockTTL)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	status := models.SchedulerStatus{
+		ID:     fmt.Sprintf("scheduler-%s", instanceID),
+		Status: "running",
+	}
+	data, _ := json.Marshal(status)
+	err = etcdclient.Set(fmt.Sprintf("scheduler/status/%s", status.ID), string(data))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	//release resources
 	defer le.Client.Close()
 	defer le.Session.Close()

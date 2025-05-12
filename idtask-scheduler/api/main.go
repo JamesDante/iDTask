@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/JamesDante/idtask-scheduler/configs"
+	"github.com/JamesDante/idtask-scheduler/internal/etcdclient"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
 	"github.com/JamesDante/idtask-scheduler/storage"
@@ -20,6 +21,7 @@ import (
 
 var (
 	rdb *redis.Client
+	//etcd *clientv3.Client
 	ctx = context.Background()
 	db  *sqlx.DB
 )
@@ -33,9 +35,14 @@ func main() {
 	redisclient.Init()
 	rdb = redisclient.GetClient()
 
+	etcdclient.Init()
+	//etcd = etcdclient.GetClient()
+
 	// Register HTTP handler
 	http.HandleFunc("/tasks", handleTaskSubmit)
 	http.HandleFunc("/delayedtasks", handleDelayedTaskSubmit)
+	http.HandleFunc("/scheduler/status", getSchedulerStatus)
+
 	log.Printf("Server started at %s", configs.Config.WebApiPort)
 	http.ListenAndServe(configs.Config.WebApiPort, nil)
 }
@@ -78,6 +85,34 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(t)
+}
+
+func getSchedulerStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	kvMap, err := etcdclient.Get("scheduler/status")
+	if err != nil {
+		http.Error(w, "Failed to get status from etcd", http.StatusInternalServerError)
+		return
+	}
+
+	statuses := make([]models.SchedulerStatus, 0, len(kvMap))
+	for _, val := range kvMap {
+		var s models.SchedulerStatus
+		if err := json.Unmarshal([]byte(val), &s); err == nil {
+			statuses = append(statuses, s)
+		}
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(statuses)
 }
 
 func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
