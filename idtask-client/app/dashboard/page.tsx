@@ -40,19 +40,11 @@ export default function Page() {
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
             <div className="px-4 lg:px-6">
                 <h2 className="text-lg font-semibold mb-2">Schedulers</h2>
-                <ul className="list-disc pl-5 text-sm text-muted-foreground">
-                  {schedulers.map((s: any, i) => (
-                    <li key={i}>
-                      ID: <span className="text-foreground">{s.id}</span>, Status: <span className="text-foreground">{s.status}</span>
-                    </li>
-                  ))}
-                </ul>
               </div>
-              <SectionCards />
+              <SectionCards data={schedulers} />
               <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
               </div>
-
             </div>
           </div>
         </div>

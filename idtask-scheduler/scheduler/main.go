@@ -47,14 +47,49 @@ func main() {
 	}
 
 	status := models.SchedulerStatus{
-		ID:     fmt.Sprintf("scheduler-%s", instanceID),
-		Status: "running",
+		ID:       fmt.Sprintf("scheduler-%s", instanceID),
+		Status:   "running",
+		IsLeader: "No",
 	}
+
+	key := fmt.Sprintf("scheduler/status/%s", status.ID)
 	data, _ := json.Marshal(status)
-	err = etcdclient.Set(fmt.Sprintf("scheduler/status/%s", status.ID), string(data))
+	leaseID, err := etcdclient.RegisterWithTTL(ctx, key, string(data), 10) // TTL 10 秒，可调
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// err = etcdclient.Set(key, string(data))
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// //Remove key when application exit
+	// defer func() {
+	// 	err := etcdclient.Delete(key)
+	// 	if err != nil {
+	// 		log.Printf("Failed to delete scheduler status from etcd: %v", err)
+	// 	} else {
+	// 		log.Printf("Deleted scheduler status from etcd: %s", key)
+	// 	}
+	// }()
+
+	// stopChan := make(chan os.Signal, 1)
+	// signal.Notify(stopChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// go func() {
+	// 	<-stopChan
+	// 	log.Println("Received termination signal, cleaning up...")
+
+	// 	err := etcdclient.Delete(key)
+	// 	if err != nil {
+	// 		log.Printf("Failed to delete scheduler status from etcd: %v", err)
+	// 	} else {
+	// 		log.Printf("Deleted scheduler status from etcd: %s", key)
+	// 	}
+
+	// 	os.Exit(0)
+	// }()
 
 	//release resources
 	defer le.Client.Close()
@@ -62,6 +97,18 @@ func main() {
 
 	le.OnElected = func() {
 		log.Println("Elected leader, starting scheduler")
+
+		status = models.SchedulerStatus{
+			ID:       fmt.Sprintf("scheduler-%s", instanceID),
+			Status:   "running",
+			IsLeader: "Yes",
+		}
+
+		data, _ := json.Marshal(status)
+		err = etcdclient.Update(ctx, key, string(data), leaseID) // TTL 10 秒，可调
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		watcher, _ := NewWorkerWatcher("/workers/")
 		pool := NewWorkerPool()
@@ -83,6 +130,18 @@ func main() {
 	}
 
 	le.OnResigned = func() {
+		status = models.SchedulerStatus{
+			ID:       fmt.Sprintf("scheduler-%s", instanceID),
+			Status:   "running",
+			IsLeader: "No",
+		}
+
+		data, _ := json.Marshal(status)
+		err = etcdclient.Update(ctx, key, string(data), leaseID) // TTL 10 秒，可调
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		log.Println("Resigned from leadership, stopping scheduler")
 	}
 

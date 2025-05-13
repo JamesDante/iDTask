@@ -100,7 +100,7 @@ func pollDelayedTasks() {
 }
 
 func processTask(task models.Task) error {
-	// 幂等键：task-executed:<task-id>
+	// key：task-executed:<task-id>
 	key := fmt.Sprintf("task-executed:%s", task.ID)
 
 	// SetNX: set when key not exists
@@ -128,7 +128,7 @@ func processTask(task models.Task) error {
 
 func executeTask(t models.Task) error {
 	log.Printf("[Worker] Executing Task #%s: Type=%s, Payload=%s", t.ID, t.Type, t.Payload)
-	// 模拟执行耗时
+	// TODO
 	time.Sleep(1 * time.Second)
 	log.Printf("[Worker] Task #%s completed", t.ID)
 

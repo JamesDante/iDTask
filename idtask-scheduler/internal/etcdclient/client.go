@@ -2,6 +2,7 @@ package etcdclient
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -31,6 +32,36 @@ func GetClient() *clientv3.Client {
 	return cli
 }
 
+func RegisterWithTTL(ctx context.Context, key, value string, ttl int64) (clientv3.LeaseID, error) {
+	// create lease
+	leaseResp, err := cli.Grant(ctx, ttl)
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = cli.Put(ctx, key, value, clientv3.WithLease(leaseResp.ID))
+	if err != nil {
+		return 0, err
+	}
+
+	ch, err := cli.KeepAlive(ctx, leaseResp.ID)
+	if err != nil {
+		return 0, err
+	}
+
+	go func() {
+		for ka := range ch {
+			if ka == nil {
+				log.Printf("Lease keepalive channel closed for key: %s", key)
+				return
+			}
+		}
+	}()
+
+	log.Printf("Key %s registered with TTL %d seconds", key, ttl)
+	return leaseResp.ID, nil
+}
+
 func Get(prefix string) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -48,10 +79,40 @@ func Get(prefix string) (map[string]string, error) {
 	return result, nil
 }
 
-func Set(key, val string) error {
+func Set(key string, val string, leaseRespID clientv3.LeaseID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err := cli.Put(ctx, key, val)
+	_, err := cli.Put(ctx, key, val, clientv3.WithLease(leaseRespID))
+	return err
+}
+
+func Delete(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := cli.Delete(ctx, key)
+	return err
+}
+
+func DeleteWithPrefix(prefix string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := cli.Delete(ctx, prefix, clientv3.WithPrefix())
+	return err
+}
+
+func Update(ctx context.Context, key string, val string, leaseRespID clientv3.LeaseID) error {
+
+	resp, err := cli.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	if len(resp.Kvs) == 0 {
+		return fmt.Errorf("key %s not found", key)
+	}
+
+	_, err = cli.Put(ctx, key, val, clientv3.WithLease(leaseRespID))
 	return err
 }
