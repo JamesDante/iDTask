@@ -4,9 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
-	"time"
 
-	"github.com/JamesDante/idtask-scheduler/configs"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -19,15 +17,15 @@ type WorkerWatcher struct {
 	CancelCtx context.CancelFunc
 }
 
-func NewWorkerWatcher(prefix string) (*WorkerWatcher, error) {
+func NewWorkerWatcher(cli *clientv3.Client, prefix string) (*WorkerWatcher, error) {
 
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{configs.Config.RedisAddress},
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	// cli, err := clientv3.New(clientv3.Config{
+	// 	Endpoints:   []string{configs.Config.EtcdAddress},
+	// 	DialTimeout: 5 * time.Second,
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	return &WorkerWatcher{
 		Client: cli,

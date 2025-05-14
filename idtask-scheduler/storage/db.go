@@ -30,6 +30,7 @@ func createTables() {
 		id TEXT PRIMARY KEY,
 		type TEXT,
 		payload TEXT,
+		status TEXT,
 		retries  INT,
 		max_retry INT,
 		priority INT DEFAULT 0,

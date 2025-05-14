@@ -10,6 +10,7 @@ import (
 	"github.com/JamesDante/idtask-scheduler/configs"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/storage"
 	"github.com/google/uuid"
 
 	"github.com/go-redis/redis/v8"
@@ -28,9 +29,12 @@ func main() {
 	redisclient.Init()
 	rdb = redisclient.GetClient()
 
+	storage.Init()
+	db = storage.GetDB()
+
 	initWorkerMetrics()
 
-	workerId := generateWorkerID()
+	workerId = generateWorkerID()
 	registry, _ := NewWorkerRegistry([]string{configs.Config.EtcdAddress})
 	err := registry.Register(workerId, configs.LockTTL)
 	if err != nil {
@@ -58,6 +62,8 @@ func consumeTasks() {
 		if len(res) < 2 {
 			continue
 		}
+
+		log.Printf("Raw task from Redis: %s\n", res[1])
 
 		var t models.Task
 		err = json.Unmarshal([]byte(res[1]), &t)

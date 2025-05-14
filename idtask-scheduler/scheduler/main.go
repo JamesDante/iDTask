@@ -21,10 +21,11 @@ import (
 )
 
 var (
-	rdb  *redis.Client
-	aic  *aiclient.AIClient
-	pool *WorkerPool
-	etcd *clientv3.Client
+	rdb     *redis.Client
+	aic     *aiclient.AIClient
+	pool    *WorkerPool
+	etcd    *clientv3.Client
+	watcher *WorkerWatcher
 )
 
 func main() {
@@ -105,13 +106,13 @@ func main() {
 		}
 
 		data, _ := json.Marshal(status)
-		err = etcdclient.Update(ctx, key, string(data), leaseID) // TTL 10 秒，可调
+		err = etcdclient.Update(ctx, key, string(data), leaseID) // TTL 10 sec.
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		watcher, _ := NewWorkerWatcher("/workers/")
-		pool := NewWorkerPool()
+		watcher, _ = NewWorkerWatcher(etcd, "/workers/")
+		pool = NewWorkerPool()
 
 		watcher.OnAdd = func(addr string) {
 			log.Println("add worker:", addr)
@@ -124,7 +125,7 @@ func main() {
 		}
 
 		watcher.Start()
-		defer watcher.Stop()
+		//defer watcher.Stop()
 
 		schedulingWork(le)
 	}
@@ -134,6 +135,11 @@ func main() {
 			ID:       fmt.Sprintf("scheduler-%s", instanceID),
 			Status:   "running",
 			IsLeader: "No",
+		}
+
+		if watcher != nil {
+			watcher.Stop()
+			log.Println("Worker watcher stopped.")
 		}
 
 		data, _ := json.Marshal(status)
@@ -188,7 +194,13 @@ func schedulingWork(le *LeaderElector) {
 
 			workerNode := chooseWorker(aiPrediction)
 
-			err = rdb.RPush(context.Background(), workerNode, task.ID).Err()
+			taskBytes, err := json.Marshal(task)
+			if err != nil {
+				log.Printf("Failed to marshal task %s: %v", task.ID, err)
+				continue
+			}
+
+			err = rdb.RPush(context.Background(), workerNode, taskBytes).Err()
 			if err != nil {
 				log.Println("Failed to push task to worker:", err)
 			} else {

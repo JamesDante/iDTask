@@ -5,6 +5,9 @@ export const apiClient = {
   post: async (path: string, data: any) => {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(data),
     });
 

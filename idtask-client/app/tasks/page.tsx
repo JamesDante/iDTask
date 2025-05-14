@@ -8,22 +8,21 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { apiClient } from "@/lib/api-client";
 import { useState } from "react";
 
-
 import data from "../dashboard/data.json"
 
 export default function HomePage() {
   const [tasks, setTasks] = useState(data);
-  const [newTask, setNewTask] = useState({ id: "", status: "Pending", duration: 0 });
+  const [newTask, setNewTask] = useState({ type: "webpage", status: "Pending" });
 
   const addTask = async () => {
-    if (!newTask.id) return;
+    //if (!newTask.id) return;
 
     try {
-      const response = await apiClient.post("/tasks", JSON.stringify(newTask))
+      const response = await apiClient.post("/tasks", newTask)
       
       if (response.ok) {
         setTasks([...tasks, newTask]);
-        setNewTask({ id: "", status: "Pending", duration: 0 });
+        setNewTask({ id: "", status: "Pending" });
       } else {
         console.error("Failed to add task");
       }
@@ -47,21 +46,12 @@ export default function HomePage() {
       <main className="p-6">
       <h1 className="text-2xl font-bold mb-4">Task List</h1>
       <div className="mb-4 space-x-2">
-        <input
+        {/* <input
           className="border px-2 py-1"
           placeholder="Task ID"
           value={newTask.id}
           onChange={(e) => setNewTask({ ...newTask, id: e.target.value })}
-        />
-        <input
-          className="border px-2 py-1"
-          type="number"
-          placeholder="Duration"
-          value={newTask.duration}
-          onChange={(e) =>
-            setNewTask({ ...newTask, duration: parseInt(e.target.value, 10) || 0 })
-          }
-        />
+        /> */}
         <select
           className="border px-2 py-1"
           value={newTask.status}

@@ -39,9 +39,9 @@ func main() {
 	//etcd = etcdclient.GetClient()
 
 	// Register HTTP handler
-	http.HandleFunc("/tasks", handleTaskSubmit)
-	http.HandleFunc("/delayedtasks", handleDelayedTaskSubmit)
-	http.HandleFunc("/scheduler/status", getSchedulerStatus)
+	http.HandleFunc("/tasks", withCORS(handleTaskSubmit))
+	http.HandleFunc("/delayedtasks", withCORS(handleDelayedTaskSubmit))
+	http.HandleFunc("/scheduler/status", withCORS(getSchedulerStatus))
 
 	log.Printf("Server started at %s", configs.Config.WebApiPort)
 	http.ListenAndServe(configs.Config.WebApiPort, nil)
@@ -63,14 +63,20 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	t.Payload = string(payloadBytes)
 
 	t.ID = uuid.New().String()
+	t.CreatedAt = time.Now()
+	t.ExpireAt = time.Now().AddDate(0, 0, 1)
 
 	// Save to DB
 	result := db.QueryRowx(
-		"INSERT INTO tasks(id, type, payload) VALUES($1, $2, $3) RETURNING created_at",
-		t.ID, t.Type, t.Payload,
+		"INSERT INTO tasks(id, type, payload, status, expire_at) VALUES($1, $2, $3, $4, $5) RETURNING created_at",
+		t.ID, t.Type, t.Payload, t.Status, t.ExpireAt,
 	)
 
-	if err := result.Scan(&t.CreatedAt); err != nil {
+	// log.Printf("%s", t.CreatedAt.GoString())
+
+	err := result.Scan(&t.CreatedAt)
+	if err != nil {
+		log.Fatalf("Failed to insert task: %v", err)
 		http.Error(w, "DB error", http.StatusInternalServerError)
 		return
 	}
@@ -107,11 +113,6 @@ func getSchedulerStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.Header().Set("Content-Type", "application/json")
-
 	json.NewEncoder(w).Encode(statuses)
 }
 
@@ -140,4 +141,20 @@ func enqueueDelayedTask(task models.Task, delay time.Duration) error {
 		Score:  float64(time.Now().Add(delay).Unix()),
 		Member: jobBytes,
 	}).Err()
+}
+
+// middleware
+func withCORS(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		h(w, r)
+	}
 }
