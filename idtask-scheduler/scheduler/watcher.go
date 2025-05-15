@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"strings"
 
+	"github.com/JamesDante/idtask-scheduler/models"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -12,8 +14,8 @@ import (
 type WorkerWatcher struct {
 	Client    *clientv3.Client
 	Prefix    string
-	OnAdd     func(addr string)
-	OnDelete  func(addr string)
+	OnAdd     func(worker models.WorkerStatus)
+	OnDelete  func(worker models.WorkerStatus)
 	CancelCtx context.CancelFunc
 }
 
@@ -47,12 +49,22 @@ func (w *WorkerWatcher) Start() {
 				case mvccpb.PUT:
 					log.Printf("[watcher] Worker added: %s", addr)
 					if w.OnAdd != nil {
-						w.OnAdd(string(ev.Kv.Value))
+						var worker models.WorkerStatus
+						if err := json.Unmarshal(ev.Kv.Value, &worker); err != nil {
+							log.Printf("[watcher] Failed to parse worker status: %v", err)
+							continue
+						}
+						w.OnAdd(worker)
 					}
 				case mvccpb.DELETE:
 					log.Printf("[watcher] Worker removed: %s", addr)
 					if w.OnDelete != nil {
-						w.OnDelete(string(ev.PrevKv.Value))
+						var worker models.WorkerStatus
+						if err := json.Unmarshal(ev.Kv.Value, &worker); err != nil {
+							log.Printf("[watcher] Failed to parse worker status: %v", err)
+							continue
+						}
+						w.OnDelete(worker)
 					}
 				}
 			}

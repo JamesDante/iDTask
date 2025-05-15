@@ -3,6 +3,8 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components
 interface Task {
   id: string;
   status: string;
+  type: string;
+  assgin: string;
   duration: number;
 }
 
@@ -15,17 +17,21 @@ export  function TaskTable({ data }: TaskTableProps) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableCell>任务 ID</TableCell>
-          <TableCell>状态</TableCell>
-          <TableCell>执行时间</TableCell>
+          <TableCell>Task ID</TableCell><
+            TableCell>Type</TableCell>
+          <TableCell>Status</TableCell>
+          <TableCell>Duration</TableCell>
+          <TableCell>Assign</TableCell>
         </TableRow>
       </TableHeader>
       <TableBody>
         {data.map(task => (
           <TableRow key={task.id}>
             <TableCell>{task.id}</TableCell>
+            <TableCell>{task.type}</TableCell>
             <TableCell>{task.status}</TableCell>
             <TableCell>{task.duration}s</TableCell>
+            <TableCell>{task.assgin}</TableCell>
           </TableRow>
         ))}
       </TableBody>

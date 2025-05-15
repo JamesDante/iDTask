@@ -40,11 +40,31 @@ func main() {
 
 	// Register HTTP handler
 	http.HandleFunc("/tasks", withCORS(handleTaskSubmit))
+	http.HandleFunc("/tasks/list", withCORS(handleTaskList))
 	http.HandleFunc("/delayedtasks", withCORS(handleDelayedTaskSubmit))
 	http.HandleFunc("/scheduler/status", withCORS(getSchedulerStatus))
+	http.HandleFunc("/worker/status", withCORS(getWorkerStatus))
 
 	log.Printf("Server started at %s", configs.Config.WebApiPort)
 	http.ListenAndServe(configs.Config.WebApiPort, nil)
+}
+
+func handleTaskList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var tasks []models.Task
+	err := db.Select(&tasks, "SELECT * FROM tasks ORDER BY created_at DESC")
+	if err != nil {
+		log.Printf("Failed to query tasks: %v", err)
+		http.Error(w, "Failed to fetch tasks", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
 }
 
 func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
@@ -63,8 +83,11 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	t.Payload = string(payloadBytes)
 
 	t.ID = uuid.New().String()
-	t.CreatedAt = time.Now()
-	t.ExpireAt = time.Now().AddDate(0, 0, 1)
+	createdAt := time.Now()
+	expireAt := time.Now().AddDate(0, 0, 1)
+
+	t.CreatedAt = &createdAt
+	t.ExpireAt = &expireAt
 
 	// Save to DB
 	result := db.QueryRowx(
@@ -91,6 +114,31 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(t)
+}
+
+func getWorkerStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	kvMap, err := etcdclient.Get("/workers")
+	if err != nil {
+		http.Error(w, "Failed to get status from etcd", http.StatusInternalServerError)
+		return
+	}
+
+	statuses := make([]models.WorkerStatus, 0, len(kvMap))
+	for _, val := range kvMap {
+		var s models.WorkerStatus
+		if err := json.Unmarshal([]byte(val), &s); err == nil {
+			statuses = append(statuses, s)
+		} else {
+			log.Printf("❌ Failed to parse worker status: %v\nRaw: %s", err, val)
+		}
+	}
+
+	json.NewEncoder(w).Encode(statuses)
 }
 
 func getSchedulerStatus(w http.ResponseWriter, r *http.Request) {

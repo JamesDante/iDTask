@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/JamesDante/idtask-scheduler/models"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -34,8 +36,19 @@ func (r *WorkerRegistry) Register(address string, ttl time.Duration) error {
 	}
 	r.LeaseID = leaseResp.ID
 
+	status := models.WorkerStatus{
+		ID:     address,
+		Status: "ok",
+	}
+
+	jsonBytes, err := json.Marshal(status)
+	if err != nil {
+		log.Printf("Failed to marshal worker status: %v", err)
+		return err
+	}
+
 	key := fmt.Sprintf("/workers/%s", address)
-	_, err = r.Client.Put(context.Background(), key, address, clientv3.WithLease(r.LeaseID))
+	_, err = r.Client.Put(context.Background(), key, string(jsonBytes), clientv3.WithLease(r.LeaseID))
 	if err != nil {
 		return fmt.Errorf("put with lease failed: %w", err)
 	}

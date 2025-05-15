@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/JamesDante/idtask-scheduler/configs"
@@ -80,7 +81,8 @@ func consumeTasks() {
 }
 
 func generateWorkerID() string {
-	return fmt.Sprintf("worker-%s", uuid.New().String()[:8])
+	host, _ := os.Hostname()
+	return fmt.Sprintf("worker-%s-%s", host, uuid.New().String()[:6])
 }
 
 func pollDelayedTasks() {

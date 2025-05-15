@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"sync"
+	"time"
+
+	"github.com/JamesDante/idtask-scheduler/models"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type WorkerPool struct {
@@ -18,11 +24,39 @@ func NewWorkerPool() *WorkerPool {
 	}
 }
 
+func (wp *WorkerPool) InitFromEtcd(cli *clientv3.Client, prefix string) error {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, prefix, clientv3.WithPrefix())
+	if err != nil {
+		return err
+	}
+
+	wp.workers = make([]string, 0, len(resp.Kvs))
+	seen := make(map[string]bool)
+	for _, kv := range resp.Kvs {
+		var status models.WorkerStatus
+		if err := json.Unmarshal(kv.Value, &status); err != nil {
+			continue
+		}
+
+		if !seen[status.ID] {
+			wp.workers = append(wp.workers, status.ID)
+			seen[status.ID] = true
+		}
+	}
+	wp.index = 0
+	return nil
+}
+
 func (wp *WorkerPool) Add(worker string) {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
-	// 避免重复添加
 	for _, w := range wp.workers {
 		if w == worker {
 			return

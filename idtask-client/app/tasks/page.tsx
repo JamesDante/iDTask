@@ -6,13 +6,16 @@ import { DataTable } from "@/components/data-table";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { apiClient } from "@/lib/api-client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import data from "../dashboard/data.json"
+import { TaskTable } from "@/components/task-table";
 
 export default function HomePage() {
   const [tasks, setTasks] = useState(data);
   const [newTask, setNewTask] = useState({ type: "webpage", status: "Pending" });
+
+  const [tasksList, setTasksList] = useState([]);
 
   const addTask = async () => {
     //if (!newTask.id) return;
@@ -30,6 +33,13 @@ export default function HomePage() {
       console.error("Error:", error);
     }
   };
+
+  useEffect(() => {
+    apiClient.post("/tasks/list", {})
+      .then(setTasksList)
+      .catch((err) => console.error("Failed to load tasks list:", err));
+  }, []);
+    
 
   return (
   <SidebarProvider
@@ -67,7 +77,7 @@ export default function HomePage() {
           Add Task
         </button>
       </div>
-      <DataTable data={data} />
+      <TaskTable data={tasksList} />
     </main>
     </SidebarInset>
   </SidebarProvider>

@@ -113,15 +113,16 @@ func main() {
 
 		watcher, _ = NewWorkerWatcher(etcd, "/workers/")
 		pool = NewWorkerPool()
+		pool.InitFromEtcd(etcd, "/workers/")
 
-		watcher.OnAdd = func(addr string) {
-			log.Println("add worker:", addr)
-			pool.Add(addr)
+		watcher.OnAdd = func(worker models.WorkerStatus) {
+			log.Println("add worker:", worker.ID)
+			pool.Add(worker.ID)
 		}
 
-		watcher.OnDelete = func(addr string) {
-			log.Println("remove worker:", addr)
-			pool.Remove(addr)
+		watcher.OnDelete = func(worker models.WorkerStatus) {
+			log.Println("remove worker:", worker.ID)
+			pool.Remove(worker.ID)
 		}
 
 		watcher.Start()
@@ -187,7 +188,7 @@ func schedulingWork(le *LeaderElector) {
 				continue
 			}
 
-			if time.Now().After(task.ExpireAt) {
+			if task.ExpireAt != nil && time.Now().After(*task.ExpireAt) {
 				log.Printf("Task %s is expired, skipping\n", task.ID)
 				continue
 			}
