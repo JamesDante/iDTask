@@ -14,6 +14,7 @@ import (
 	"github.com/JamesDante/idtask-scheduler/internal/etcdclient"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/utils"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
@@ -179,7 +180,7 @@ func schedulingWork(le *LeaderElector) {
 			meta := map[string]string{
 				"TaskId":   task.ID,
 				"TaskType": task.Type,
-				"Priority": fmt.Sprintf("%d", task.Priority),
+				"Priority": utils.FormatNullInt(task.Priority),
 			}
 
 			aiPrediction, err := aic.Predict(task.ID, meta)
