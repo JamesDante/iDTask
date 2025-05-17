@@ -55,7 +55,6 @@ func consumeTasks() {
 		res, err := rdb.BLPop(ctx, 0*time.Second, workerId).Result()
 		if err != nil {
 			log.Printf("Redis error: %v", err)
-			tasksFailed.Inc()
 			continue
 		}
 
@@ -128,6 +127,7 @@ func processTask(task models.Task, rawTask string) error {
 
 	if err != nil {
 		rdb.Del(ctx, key)
+		rdb.LRem(ctx, "processing-queue", 1, rawTask)
 		storage.UpdateTasks(task.ID, "Failed")
 		storage.CreateTaskLogs(task.ID, workerId, "Task Failed")
 		return fmt.Errorf("task failed: %w", err)

@@ -21,11 +21,25 @@ export default function Page() {
 
   useEffect(() => {
     apiClient.post("/scheduler/status", {})
-      .then(setSchedulers)
-      .catch((err) => console.error("Failed to load schedulers:", err));
+      //.then(setSchedulers)
+      .then((res) => {
+        if (res.status === "OK") {
+          setSchedulers(res.data);
+        } else {
+          console.error("Failed to load scheduler status:", res.error || "Unknown error");
+        }
+      })
+      .catch((err) => console.error("Failed to load scheduler status:", err));
 
     apiClient.post("/worker/status", {})
-      .then(setWorkers)
+      //.then(setWorkers)
+      .then((res) => {
+        if (res.status === "OK") {
+          setWorkers(res.data);
+        } else {
+          console.error("Failed to load worker status:", res.error || "Unknown error");
+        }
+      })
       .catch((err) => console.error("Failed to load workers:", err));
   }, []);
   
@@ -52,9 +66,9 @@ export default function Page() {
                 <h2 className="text-lg font-semibold mb-2">Workers</h2>
               </div>
               <SectionWorkerCards data={workers} />
-              <div className="px-4 lg:px-6">
+              {/* <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

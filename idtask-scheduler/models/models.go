@@ -48,3 +48,21 @@ type WorkerStatus struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 }
+
+type APIResponse struct {
+	Status string      `json:"status"`
+	Data   interface{} `json:"data,omitempty"`
+	Total  int         `json:"total"`
+	Error  string      `json:"error,omitempty"`
+}
+
+type APIListResponse struct {
+	Status   string      `json:"status"`
+	ListData interface{} `json:"list_data,omitempty"`
+	Total    int         `json:"total"`
+}
+
+type APIListRequest struct {
+	Page     int `json:"page"`
+	PageSize int `json:"page_size"`
+}

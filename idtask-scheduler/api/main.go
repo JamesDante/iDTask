@@ -12,7 +12,6 @@ import (
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
 	"github.com/JamesDante/idtask-scheduler/storage"
-	"github.com/jmoiron/sqlx"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -21,22 +20,18 @@ import (
 
 var (
 	rdb *redis.Client
-	//etcd *clientv3.Client
 	ctx = context.Background()
-	db  *sqlx.DB
 )
 
 func main() {
 	// Connect Postgres
 	storage.Init()
-	db = storage.GetDB()
 
 	// Connect Redis
 	redisclient.Init()
 	rdb = redisclient.GetClient()
 
 	etcdclient.Init()
-	//etcd = etcdclient.GetClient()
 
 	// Register HTTP handler
 	http.HandleFunc("/tasks", withCORS(handleTaskSubmit))
@@ -51,29 +46,47 @@ func main() {
 
 func handleTaskList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
 		return
 	}
 
-	tasks, err := storage.GetTasks()
+	var req models.APIListRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, nil, "Invalid JSON")
+		return
+	}
+
+	tasks, err := storage.GetTasks(&req)
 	if err != nil {
-		http.Error(w, "Failed to fetch tasks", http.StatusInternalServerError)
+		writeJSON(w, http.StatusInternalServerError, nil, "Failed to fetch tasks")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tasks)
+	tasksCount := storage.GetTasksCount()
+
+	resp := models.APIListResponse{
+		Status:   "OK",
+		ListData: tasks,
+		Total:    tasksCount,
+	}
+
+	//resp.ListData = tasks
+
+	writeJSON(w, http.StatusOK, resp, "")
 }
 
 func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
 		return
 	}
 
 	var t models.Task
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		//http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeJSON(w, http.StatusBadRequest, nil, "Invalid JSON")
 		return
 	}
 
@@ -88,12 +101,7 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	t.ExpireAt = &expireAt
 
 	// Save to DB
-	result := db.QueryRowx(
-		"INSERT INTO tasks(id, type, payload, status, expire_at) VALUES($1, $2, $3, $4, $5) RETURNING created_at",
-		t.ID, t.Type, t.Payload, t.Status, t.ExpireAt,
-	)
-
-	// log.Printf("%s", t.CreatedAt.GoString())
+	result := storage.CreateTask(&t)
 
 	err := result.Scan(&t.CreatedAt)
 	if err != nil {
@@ -110,19 +118,22 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	rdb.RPush(ctx, "task-queue", jobBytes)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(t)
+	//w.Header().Set("Content-Type", "application/json")
+	//json.NewEncoder(w).Encode(t)
+	writeJSON(w, http.StatusOK, t, "")
 }
 
 func getWorkerStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
 		return
 	}
 
 	kvMap, err := etcdclient.Get("/workers")
 	if err != nil {
-		http.Error(w, "Failed to get status from etcd", http.StatusInternalServerError)
+		//http.Error(w, "Failed to get status from etcd", http.StatusInternalServerError)
+		writeJSON(w, http.StatusInternalServerError, nil, "Failed to get status from etcd")
 		return
 	}
 
@@ -136,18 +147,21 @@ func getWorkerStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	json.NewEncoder(w).Encode(statuses)
+	//json.NewEncoder(w).Encode(statuses)
+	writeJSON(w, http.StatusOK, statuses, "")
 }
 
 func getSchedulerStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
 		return
 	}
 
 	kvMap, err := etcdclient.Get("scheduler/status")
 	if err != nil {
-		http.Error(w, "Failed to get status from etcd", http.StatusInternalServerError)
+		//http.Error(w, "Failed to get status from etcd", http.StatusInternalServerError)
+		writeJSON(w, http.StatusInternalServerError, nil, "Failed to get status from etcd")
 		return
 	}
 
@@ -159,18 +173,21 @@ func getSchedulerStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	json.NewEncoder(w).Encode(statuses)
+	//json.NewEncoder(w).Encode(statuses)
+	writeJSON(w, http.StatusOK, statuses, "")
 }
 
 func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
 		return
 	}
 
 	var t models.Task
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		//http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeJSON(w, http.StatusBadRequest, nil, "Invalid JSON")
 		return
 	}
 
@@ -203,4 +220,21 @@ func withCORS(h http.HandlerFunc) http.HandlerFunc {
 
 		h(w, r)
 	}
+}
+
+func writeJSON(w http.ResponseWriter, statusCode int, data interface{}, errMsg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	resp := models.APIResponse{
+		Status: http.StatusText(statusCode),
+	}
+
+	if errMsg != "" {
+		resp.Error = errMsg
+	} else {
+		resp.Data = data
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }

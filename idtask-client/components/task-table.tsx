@@ -1,4 +1,5 @@
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { format, parseISO } from "date-fns"
 
 interface Task {
   id: string;
@@ -6,6 +7,8 @@ interface Task {
   type: string;
   assgin: string;
   duration: number;
+  created_at: string;
+  executed_at: string;
   executed_by: { String: string; Valid: boolean };
 }
 
@@ -18,11 +21,12 @@ export  function TaskTable({ data }: TaskTableProps) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableCell>Task ID</TableCell><
-            TableCell>Type</TableCell>
+          <TableCell>Task ID</TableCell>
+          <TableCell>Type</TableCell>
           <TableCell>Status</TableCell>
-          <TableCell>Duration</TableCell>
+          <TableCell>Created At</TableCell>
           <TableCell>Assign</TableCell>
+          <TableCell>Executed At</TableCell>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -31,8 +35,9 @@ export  function TaskTable({ data }: TaskTableProps) {
             <TableCell>{task.id}</TableCell>
             <TableCell>{task.type}</TableCell>
             <TableCell>{task.status}</TableCell>
-            <TableCell>{task.duration}s</TableCell>
-            <TableCell>{task.executed_by.Valid ? task.executed_by.String : "N/A"}</TableCell>
+            <TableCell>{format(parseISO(task.created_at), "yyyy-MM-dd HH:mm:ss")}</TableCell>
+            <TableCell>{task.executed_by.Valid ? task.executed_by.String: 'N/A'}</TableCell>
+            <TableCell>{task.executed_at?format(parseISO(task.executed_at), "yyyy-MM-dd HH:mm:ss"):'N/A'}</TableCell>
           </TableRow>
         ))}
       </TableBody>

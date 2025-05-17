@@ -51,7 +51,30 @@ func createTables() {
 	db.MustExec(schema)
 }
 
-func GetTasks() ([]models.Task, error) {
+func CreateTask(t *models.Task) *sqlx.Row {
+	result := db.QueryRowx(
+		"INSERT INTO tasks(id, type, payload, status, expire_at) VALUES($1, $2, $3, $4, $5) RETURNING created_at",
+		t.ID, t.Type, t.Payload, t.Status, t.ExpireAt,
+	)
+
+	return result
+}
+
+func GetTasksCount() int {
+	var total int
+	_ = db.Get(&total, "SELECT COUNT(*) FROM tasks")
+
+	return total
+}
+
+func GetTasks(req *models.APIListRequest) ([]models.Task, error) {
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10
+	}
+	offset := (req.Page - 1) * req.PageSize
 
 	tasks := []models.Task{}
 	err := db.Select(&tasks, `
@@ -74,7 +97,8 @@ func GetTasks() ([]models.Task, error) {
 		  ORDER BY l.executed_at DESC
 		  LIMIT 1
 		) l ON true
-		ORDER BY t.created_at DESC;`)
+		ORDER BY t.created_at DESC LIMIT $1 OFFSET $2;`, req.PageSize, offset)
+
 	if err != nil {
 		log.Printf("Failed to query tasks: %v", err)
 		return tasks, err

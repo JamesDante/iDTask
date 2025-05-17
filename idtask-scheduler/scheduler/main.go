@@ -14,6 +14,7 @@ import (
 	"github.com/JamesDante/idtask-scheduler/internal/etcdclient"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/storage"
 	"github.com/JamesDante/idtask-scheduler/utils"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -171,6 +172,7 @@ func schedulingWork(le *LeaderElector) {
 			if task.ExpireAt != nil && time.Now().After(*task.ExpireAt) {
 				log.Printf("Task %s is expired, skipping\n", task.ID)
 				rdb.LRem(ctx, "processing-queue", 1, res)
+				storage.UpdateTasks(task.ID, "Failed")
 				continue
 			}
 
