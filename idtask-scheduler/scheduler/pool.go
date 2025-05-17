@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
@@ -53,6 +54,30 @@ func (wp *WorkerPool) InitFromEtcd(cli *clientv3.Client, prefix string) error {
 	return nil
 }
 
+func (wp *WorkerPool) StartAutoRefresh(etcd *clientv3.Client, prefix string, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		log.Println("[pool] Auto-refreshing worker pool from etcd...")
+		err := wp.InitFromEtcd(etcd, prefix)
+		if err != nil {
+			log.Printf("[pool] Failed to refresh from etcd: %v", err)
+		}
+	}
+}
+
+func (wp *WorkerPool) Exists(id string) bool {
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
+	for _, w := range wp.workers {
+		if w == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (wp *WorkerPool) Add(worker string) {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
@@ -82,8 +107,8 @@ func (wp *WorkerPool) Remove(worker string) {
 }
 
 func (wp *WorkerPool) Next() (string, error) {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
 
 	if len(wp.workers) == 0 {
 		return "", errors.New("no available workers")

@@ -27,6 +27,7 @@ var (
 	pool    *WorkerPool
 	etcd    *clientv3.Client
 	watcher *WorkerWatcher
+	ctx     = context.Background()
 )
 
 func main() {
@@ -40,7 +41,7 @@ func main() {
 	etcdclient.Init()
 	etcd = etcdclient.GetClient()
 
-	ctx := context.Background()
+	//ctx := context.Background()
 
 	instanceID := generateInstanceID()
 	le, err := NewLeaderElector(etcd, "/scheduler/leader", instanceID, configs.LockTTL)
@@ -56,42 +57,10 @@ func main() {
 
 	key := fmt.Sprintf("scheduler/status/%s", status.ID)
 	data, _ := json.Marshal(status)
-	leaseID, err := etcdclient.RegisterWithTTL(ctx, key, string(data), 10) // TTL 10 秒，可调
+	leaseID, err := etcdclient.RegisterWithTTL(ctx, key, string(data), 10) // TTL 10 sec
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// err = etcdclient.Set(key, string(data))
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// //Remove key when application exit
-	// defer func() {
-	// 	err := etcdclient.Delete(key)
-	// 	if err != nil {
-	// 		log.Printf("Failed to delete scheduler status from etcd: %v", err)
-	// 	} else {
-	// 		log.Printf("Deleted scheduler status from etcd: %s", key)
-	// 	}
-	// }()
-
-	// stopChan := make(chan os.Signal, 1)
-	// signal.Notify(stopChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// go func() {
-	// 	<-stopChan
-	// 	log.Println("Received termination signal, cleaning up...")
-
-	// 	err := etcdclient.Delete(key)
-	// 	if err != nil {
-	// 		log.Printf("Failed to delete scheduler status from etcd: %v", err)
-	// 	} else {
-	// 		log.Printf("Deleted scheduler status from etcd: %s", key)
-	// 	}
-
-	// 	os.Exit(0)
-	// }()
 
 	//release resources
 	defer le.Client.Close()
@@ -117,19 +86,26 @@ func main() {
 		pool.InitFromEtcd(etcd, "/workers/")
 
 		watcher.OnAdd = func(worker models.WorkerStatus) {
+			le.mu.Lock()
+			defer le.mu.Unlock()
 			log.Println("add worker:", worker.ID)
 			pool.Add(worker.ID)
 		}
 
 		watcher.OnDelete = func(worker models.WorkerStatus) {
+			le.mu.Lock()
+			defer le.mu.Unlock()
 			log.Println("remove worker:", worker.ID)
 			pool.Remove(worker.ID)
 		}
+
+		go pool.StartAutoRefresh(etcd, "/workers/", 10*time.Second)
 
 		watcher.Start()
 		//defer watcher.Stop()
 
 		schedulingWork(le)
+		go startProcessingQueueWatcher()
 	}
 
 	le.OnResigned = func() {
@@ -145,7 +121,7 @@ func main() {
 		}
 
 		data, _ := json.Marshal(status)
-		err = etcdclient.Update(ctx, key, string(data), leaseID) // TTL 10 秒，可调
+		err = etcdclient.Update(ctx, key, string(data), leaseID) // TTL 10 sec.
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -161,19 +137,22 @@ func schedulingWork(le *LeaderElector) {
 		for le.IsLeader() {
 			log.Println("[Leader] Doing scheduling work...")
 
-			res, err := rdb.BLPop(context.Background(), 0*time.Second, "task-queue").Result()
+			res, err := rdb.BRPopLPush(ctx, "task-queue", "processing-queue", 0).Result()
 			if err != nil {
 				log.Println("Error fetching task:", err)
 				continue
 			}
 
+			log.Printf("[Scheduler] Task popped: raw=%v", res)
+
 			if len(res) < 2 {
 				continue
 			}
 
-			task := parseTask(res[1])
+			task := parseTask(res)
 
 			if task == nil {
+				rdb.LRem(ctx, "processing-queue", 1, res)
 				continue
 			}
 
@@ -191,10 +170,19 @@ func schedulingWork(le *LeaderElector) {
 
 			if task.ExpireAt != nil && time.Now().After(*task.ExpireAt) {
 				log.Printf("Task %s is expired, skipping\n", task.ID)
+				rdb.LRem(ctx, "processing-queue", 1, res)
 				continue
 			}
 
 			workerNode := chooseWorker(aiPrediction)
+			// if workerNode == "" {
+			// 	jobBytes, err := json.Marshal(task)
+			// 	if err != nil {
+			// 		log.Printf("Failed to marshal job: %v", err)
+			// 		return
+			// 	}
+			// 	rdb.RPush(ctx, "task-queue", jobBytes)
+			// }
 
 			taskBytes, err := json.Marshal(task)
 			if err != nil {
@@ -202,14 +190,52 @@ func schedulingWork(le *LeaderElector) {
 				continue
 			}
 
-			err = rdb.RPush(context.Background(), workerNode, taskBytes).Err()
+			if !pool.Exists(workerNode) {
+				log.Printf("Worker %s not registered or online. Requeue task.", workerNode)
+				rdb.RPush(ctx, "task-queue", taskBytes)
+				continue
+			}
+
+			err = rdb.RPush(ctx, workerNode, taskBytes).Err()
 			if err != nil {
 				log.Println("Failed to push task to worker:", err)
 			} else {
+				//rdb.LRem(ctx, "processing-queue", 1, res)
 				log.Printf("Task %s scheduled to worker %s\n", task.ID, workerNode)
 			}
 		}
 	}()
+}
+
+func startProcessingQueueWatcher() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		log.Println("[recovery] Checking stuck tasks in processing-queue...")
+
+		tasks, err := rdb.LRange(context.Background(), "processing-queue", 0, -1).Result()
+		if err != nil {
+			log.Printf("[recovery] Failed to read processing-queue: %v", err)
+			continue
+		}
+
+		for _, taskStr := range tasks {
+			var task models.Task
+			if err := json.Unmarshal([]byte(taskStr), &task); err != nil {
+				log.Printf("[recovery] Invalid task JSON, removing: %v", err)
+				rdb.LRem(context.Background(), "processing-queue", 1, taskStr)
+				continue
+			}
+
+			if task.CreatedAt != nil && time.Since(*task.CreatedAt) > 30*time.Second {
+				log.Printf("[recovery] Task %s expired in processing queue, requeueing", task.ID)
+
+				rdb.LPush(context.Background(), "task-queue", taskStr)
+				rdb.LRem(context.Background(), "processing-queue", 1, taskStr)
+			}
+		}
+	}
 }
 
 func generateInstanceID() string {

@@ -15,11 +15,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/jmoiron/sqlx"
 )
 
 var (
-	db       *sqlx.DB
+	//db       *sqlx.DB
 	rdb      *redis.Client
 	ctx      = context.Background()
 	workerId string
@@ -31,7 +30,7 @@ func main() {
 	rdb = redisclient.GetClient()
 
 	storage.Init()
-	db = storage.GetDB()
+	//db = storage.GetDB()
 
 	initWorkerMetrics()
 
@@ -67,6 +66,7 @@ func consumeTasks() {
 		log.Printf("Raw task from Redis: %s\n", res[1])
 
 		var t models.Task
+		rawTask := res[1]
 		err = json.Unmarshal([]byte(res[1]), &t)
 		if err != nil {
 			log.Printf("Invalid task JSON: %v", err)
@@ -74,7 +74,7 @@ func consumeTasks() {
 			continue
 		}
 
-		processTask(t)
+		processTask(t, rawTask)
 		tasksExecuted.Inc()
 		taskExecDuration.Observe(time.Since(start).Seconds())
 	}
@@ -107,7 +107,7 @@ func pollDelayedTasks() {
 	}
 }
 
-func processTask(task models.Task) error {
+func processTask(task models.Task, rawTask string) error {
 	// key：task-executed:<task-id>
 	key := fmt.Sprintf("task-executed:%s", task.ID)
 
@@ -119,14 +119,17 @@ func processTask(task models.Task) error {
 
 	if !success {
 		log.Printf("⚠️ Task already executed: %s, skipping\n", task.ID)
+		rdb.LRem(ctx, "processing-queue", 1, rawTask)
 		return nil
 	}
 
 	log.Printf("✅ Executing task %s\n", task.ID)
-	err = executeTask(task)
+	err = executeTask(task, rawTask)
 
 	if err != nil {
 		rdb.Del(ctx, key)
+		storage.UpdateTasks(task.ID, "Failed")
+		storage.CreateTaskLogs(task.ID, workerId, "Task Failed")
 		return fmt.Errorf("task failed: %w", err)
 	}
 
@@ -134,23 +137,35 @@ func processTask(task models.Task) error {
 	return nil
 }
 
-func executeTask(t models.Task) error {
+func executeTask(t models.Task, rawTask string) error {
 	log.Printf("[Worker] Executing Task #%s: Type=%s, Payload=%s", t.ID, t.Type, t.Payload)
 	// TODO
 	time.Sleep(1 * time.Second)
 	log.Printf("[Worker] Task #%s completed", t.ID)
 
-	logTaskExecution(db, t.ID, "success", "Task completed")
+	rdb.LRem(ctx, "processing-queue", 1, rawTask)
+
+	storage.UpdateTasks(t.ID, "Completed")
+	storage.CreateTaskLogs(t.ID, workerId, "Task completed")
+	//updateTaskExecution(db, t.ID, "Completed")
+	//logTaskExecution(db, t.ID, workerId, "Task completed")
 
 	return nil
 }
 
-func logTaskExecution(db *sqlx.DB, taskID, status, result string) {
-	_, err := db.Exec(`
-        INSERT INTO task_logs (task_id, status, result)
-        VALUES ($1, $2, $3)
-    `, taskID, status, result)
-	if err != nil {
-		log.Printf("⚠️ Failed to log task execution: %v\n", err)
-	}
-}
+// func updateTaskExecution(db *sqlx.DB, taskID, status string) {
+// 	_, err := db.Exec(`UPDATE tasks SET status = $1 WHERE id = $2;`, status, taskID)
+// 	if err != nil {
+// 		log.Printf("⚠️ Failed to update task execution: %v\n", err)
+// 	}
+// }
+
+// func logTaskExecution(db *sqlx.DB, taskID, executedBy, result string) {
+// 	_, err := db.Exec(`
+//         INSERT INTO task_logs (task_id, executed_by, result)
+//         VALUES ($1, $2, $3)
+//     `, taskID, executedBy, result)
+// 	if err != nil {
+// 		log.Printf("⚠️ Failed to log task execution: %v\n", err)
+// 	}
+// }

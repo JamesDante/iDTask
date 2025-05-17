@@ -41,11 +41,28 @@ func createTables() {
 	CREATE TABLE IF NOT EXISTS task_logs (
 		id SERIAL PRIMARY KEY,
 		task_id TEXT NOT NULL,
-		status TEXT NOT NULL,
 		result TEXT,
+		executed_by TEXT NOT NULL,
 		executed_at TIMESTAMP DEFAULT now()
 	);
 	`
 
 	db.MustExec(schema)
+}
+
+func UpdateTasks(taskID, status string) {
+	_, err := db.Exec(`UPDATE tasks SET status = $1 WHERE id = $2;`, status, taskID)
+	if err != nil {
+		log.Printf("⚠️ Failed to update task execution: %v\n", err)
+	}
+}
+
+func CreateTaskLogs(taskID, executedBy, result string) {
+	_, err := db.Exec(`
+        INSERT INTO task_logs (task_id, executed_by, result)
+        VALUES ($1, $2, $3)
+    `, taskID, executedBy, result)
+	if err != nil {
+		log.Printf("⚠️ Failed to log task execution: %v\n", err)
+	}
 }

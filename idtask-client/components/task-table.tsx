@@ -6,6 +6,7 @@ interface Task {
   type: string;
   assgin: string;
   duration: number;
+  executed_by: { String: string; Valid: boolean };
 }
 
 interface TaskTableProps {
@@ -31,7 +32,7 @@ export  function TaskTable({ data }: TaskTableProps) {
             <TableCell>{task.type}</TableCell>
             <TableCell>{task.status}</TableCell>
             <TableCell>{task.duration}s</TableCell>
-            <TableCell>{task.assgin}</TableCell>
+            <TableCell>{task.executed_by.Valid ? task.executed_by.String : "N/A"}</TableCell>
           </TableRow>
         ))}
       </TableBody>

@@ -55,8 +55,28 @@ func handleTaskList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var tasks []models.Task
-	err := db.Select(&tasks, "SELECT * FROM tasks ORDER BY created_at DESC")
+	tasks := []models.Task{}
+	err := db.Select(&tasks, `
+		SELECT 
+		  t.id,
+		  t.type,
+		  t.payload,
+		  t.status,
+		  t.retries,
+		  t.max_retry,
+		  t.priority,
+		  t.expire_at,
+		  t.created_at,
+		  l.executed_by,
+		  l.executed_at
+		FROM tasks t
+		LEFT JOIN LATERAL (
+		  SELECT * FROM task_logs l
+		  WHERE l.task_id = t.id
+		  ORDER BY l.executed_at DESC
+		  LIMIT 1
+		) l ON true
+		ORDER BY t.created_at DESC;`)
 	if err != nil {
 		log.Printf("Failed to query tasks: %v", err)
 		http.Error(w, "Failed to fetch tasks", http.StatusInternalServerError)

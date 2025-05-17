@@ -12,6 +12,7 @@ import {
 import data from "./data.json"
 import { useEffect, useState } from "react"
 import { apiClient } from "@/lib/api-client"
+import { SectionWorkerCards } from "@/components/section-cards-worker"
 
 export default function Page() {
 
@@ -50,7 +51,7 @@ export default function Page() {
               <div className="px-4 lg:px-6">
                 <h2 className="text-lg font-semibold mb-2">Workers</h2>
               </div>
-              <SectionCards data={workers} />
+              <SectionWorkerCards data={workers} />
               <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
               </div>

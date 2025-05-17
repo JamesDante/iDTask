@@ -51,19 +51,16 @@ func (w *WorkerWatcher) Start() {
 					if w.OnAdd != nil {
 						var worker models.WorkerStatus
 						if err := json.Unmarshal(ev.Kv.Value, &worker); err != nil {
-							log.Printf("[watcher] Failed to parse worker status: %v", err)
+							log.Printf("[watcher] Worker added Failed to parse worker status: %v", err)
 							continue
 						}
 						w.OnAdd(worker)
 					}
 				case mvccpb.DELETE:
-					log.Printf("[watcher] Worker removed: %s", addr)
+					log.Printf("[watcher] Worker removed: %s", string(ev.Kv.Key))
 					if w.OnDelete != nil {
-						var worker models.WorkerStatus
-						if err := json.Unmarshal(ev.Kv.Value, &worker); err != nil {
-							log.Printf("[watcher] Failed to parse worker status: %v", err)
-							continue
-						}
+						workerID := strings.TrimPrefix(string(ev.Kv.Key), "/workers/")
+						worker := models.WorkerStatus{ID: workerID}
 						w.OnDelete(worker)
 					}
 				}
