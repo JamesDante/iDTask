@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/JamesDante/idtask-scheduler/configs"
+	"github.com/JamesDante/idtask-scheduler/models"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -48,6 +49,38 @@ func createTables() {
 	`
 
 	db.MustExec(schema)
+}
+
+func GetTasks() ([]models.Task, error) {
+
+	tasks := []models.Task{}
+	err := db.Select(&tasks, `
+		SELECT 
+		  t.id,
+		  t.type,
+		  t.payload,
+		  t.status,
+		  t.retries,
+		  t.max_retry,
+		  t.priority,
+		  t.expire_at,
+		  t.created_at,
+		  l.executed_by,
+		  l.executed_at
+		FROM tasks t
+		LEFT JOIN LATERAL (
+		  SELECT * FROM task_logs l
+		  WHERE l.task_id = t.id
+		  ORDER BY l.executed_at DESC
+		  LIMIT 1
+		) l ON true
+		ORDER BY t.created_at DESC;`)
+	if err != nil {
+		log.Printf("Failed to query tasks: %v", err)
+		return tasks, err
+	}
+
+	return tasks, nil
 }
 
 func UpdateTasks(taskID, status string) {
