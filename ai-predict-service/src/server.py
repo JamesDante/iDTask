@@ -3,11 +3,12 @@ from concurrent import futures
 import time
 import random
 
-import predict_pb2
-import predict_pb2_grpc
+from proto import predict_pb2
+from proto import predict_pb2_grpc
 from etcd3 import Client
 
 from config import load_config
+from predictor import predict_priority_and_time
 
 cfg = load_config()
 
@@ -35,9 +36,28 @@ class AIPredictorServicer(predict_pb2_grpc.AIPredictorServicer):
                 context.set_details("No workers available")
                 return predict_pb2.PredictResponse()
 
-            recommended_worker = random.choice(list(workers.values()))
+            metadata = dict(request.metadata)
+            priority, estimated_time = predict_priority_and_time(metadata)
 
-            print(f"Recommended worker {recommended_worker}")
+            #recommended_worker = random.choice(list(workers.values()))
+            #print(f"Recommended worker {recommended_worker}")
+
+            recommended_worker = None
+            for addr, meta in workers.items():
+                if str(priority) in addr or "worker" in addr:
+                    recommended_worker = addr
+                    break
+            
+            if not recommended_worker:
+                recommended_worker = random.choice(list(workers.values()))
+            
+            if not recommended_worker:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details("No suitable worker found")
+                return predict_pb2.PredictResponse()
+
+            print(f"🎯 Predicted priority: {priority}, estimated_time: {estimated_time}")
+            print(f"✅ Recommended worker: {recommended_worker}")
 
             priority = random.randint(1, 10)
             estimated_time = round(random.uniform(1.0, 5.0), 2)

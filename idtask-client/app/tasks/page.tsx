@@ -85,10 +85,10 @@ export default function HomePage() {
           className="border px-2 py-1"
           value={newTask.type}
           onChange={(e) => setNewTask({ ...newTask, type: e.target.value })}>
-          <option>WebPage</option>
-          <option>Email</option>
-          <option>BatchJob</option>
-          <option>AIJob</option>
+          <option value={0}>WebPage</option>
+          <option value={1}>Email</option>
+          <option value={2}>BatchJob</option>
+          <option value={3}>AIJob</option>
         </select>
         <button
           className="bg-blue-500 text-white px-3 py-1 rounded"

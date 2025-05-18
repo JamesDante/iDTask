@@ -172,7 +172,7 @@ func schedulingWork(le *LeaderElector) {
 			if task.ExpireAt != nil && time.Now().After(*task.ExpireAt) {
 				log.Printf("Task %s is expired, skipping\n", task.ID)
 				rdb.LRem(ctx, "processing-queue", 1, res)
-				storage.UpdateTasks(task.ID, "Failed")
+				storage.UpdateTasks(task.ID, "Expired")
 				continue
 			}
 
