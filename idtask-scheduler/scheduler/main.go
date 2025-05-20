@@ -255,11 +255,30 @@ func generateInstanceID() string {
 
 func chooseWorker(prediction *pb.PredictResponse) string {
 	// find worker recommended by AI
+	if prediction.RecommendedWorker != "" && pool.Exists(prediction.RecommendedWorker) {
+		log.Printf("AI recommended worker selected: %s", prediction.RecommendedWorker)
+		return prediction.RecommendedWorker
+	}
+
+	minQueueLen := int(^uint(0) >> 1) //cross platform max int
+	selectedWorker := ""
+
 	for _, w := range pool.workers {
-		if w == prediction.RecommendedWorker {
-			log.Printf("AI recommended worker selected: %s", w)
-			return w
+		queueLen, err := rdb.LLen(ctx, w).Result()
+		if err != nil {
+			log.Printf("Failed to get queue length for worker %s: %v", w, err)
+			continue
 		}
+
+		if queueLen < int64(minQueueLen) {
+			minQueueLen = int(queueLen)
+			selectedWorker = w
+		}
+	}
+
+	if selectedWorker != "" {
+		log.Printf("Selected least-loaded worker: %s (queueLen=%d)", selectedWorker, minQueueLen)
+		return selectedWorker
 	}
 
 	worker, err := pool.Next()
