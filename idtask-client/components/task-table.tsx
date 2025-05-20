@@ -1,4 +1,5 @@
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { taskTypes } from "@/lib/task-types";
 import { format, parseISO } from "date-fns"
 
 interface Task {
@@ -33,7 +34,7 @@ export  function TaskTable({ data }: TaskTableProps) {
         {data.map(task => (
           <TableRow key={task.id}>
             <TableCell>{task.id}</TableCell>
-            <TableCell>{task.type}</TableCell>
+            <TableCell>{taskTypes.find(t => t.value === task.type)?.label || task.type}</TableCell>
             <TableCell>{task.status}</TableCell>
             <TableCell>{format(parseISO(task.created_at), "yyyy-MM-dd HH:mm:ss")}</TableCell>
             <TableCell>{task.executed_by.Valid ? task.executed_by.String: 'N/A'}</TableCell>

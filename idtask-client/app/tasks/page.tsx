@@ -9,10 +9,11 @@ import { useEffect, useState } from "react";
 
 import data from "../dashboard/data.json"
 import { TaskTable } from "@/components/task-table";
+import { taskTypes } from "@/lib/task-types";
 
 export default function HomePage() {
   const [tasks, setTasks] = useState(data);
-  const [newTask, setNewTask] = useState({ type: "webpage", status: "Pending" });
+  const [newTask, setNewTask] = useState({ type: "0", status: "Pending" });
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(1);
   const tasksPerPage = 10;
@@ -85,10 +86,12 @@ export default function HomePage() {
           className="border px-2 py-1"
           value={newTask.type}
           onChange={(e) => setNewTask({ ...newTask, type: e.target.value })}>
-          <option value={0}>WebPage</option>
-          <option value={1}>Email</option>
-          <option value={2}>BatchJob</option>
-          <option value={3}>AIJob</option>
+          {taskTypes.map((taskType) => (
+            <option key={taskType.value} value={taskType.value}>
+              {taskType.label}
+            </option>
+          ))}
+       
         </select>
         <button
           className="bg-blue-500 text-white px-3 py-1 rounded"
