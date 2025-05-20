@@ -11,6 +11,7 @@ import (
 	"github.com/JamesDante/idtask-scheduler/configs"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/monitor"
 	"github.com/JamesDante/idtask-scheduler/storage"
 	"github.com/google/uuid"
 
@@ -32,7 +33,7 @@ func main() {
 	storage.Init()
 	//db = storage.GetDB()
 
-	initWorkerMetrics()
+	monitor.InitWorkerMetrics()
 
 	workerId = generateWorkerID()
 	registry, _ := NewWorkerRegistry([]string{configs.Config.EtcdAddress})
@@ -69,13 +70,13 @@ func consumeTasks() {
 		err = json.Unmarshal([]byte(res[1]), &t)
 		if err != nil {
 			log.Printf("Invalid task JSON: %v", err)
-			tasksFailed.Inc()
+			monitor.WorkerTasksFailed().Inc()
 			continue
 		}
 
 		processTask(t, rawTask)
-		tasksExecuted.Inc()
-		taskExecDuration.Observe(time.Since(start).Seconds())
+		monitor.WorkerTasksExecuted().Inc()
+		monitor.WorkerTaskExecDuration().Observe(time.Since(start).Seconds())
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/JamesDante/idtask-scheduler/internal/etcdclient"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/monitor"
 	"github.com/JamesDante/idtask-scheduler/storage"
 
 	"github.com/go-redis/redis/v8"
@@ -32,6 +33,8 @@ func main() {
 	rdb = redisclient.GetClient()
 
 	etcdclient.Init()
+
+	monitor.InitApiMetrics()
 
 	// Register HTTP handler
 	http.HandleFunc("/tasks", withCORS(handleTaskSubmit))
@@ -118,6 +121,7 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	rdb.RPush(ctx, "task-queue", jobBytes)
 
+	monitor.ApiRequestsTotal().Inc()
 	//w.Header().Set("Content-Type", "application/json")
 	//json.NewEncoder(w).Encode(t)
 	writeJSON(w, http.StatusOK, t, "")

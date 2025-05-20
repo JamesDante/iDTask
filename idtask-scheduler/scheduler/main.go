@@ -14,6 +14,7 @@ import (
 	"github.com/JamesDante/idtask-scheduler/internal/etcdclient"
 	"github.com/JamesDante/idtask-scheduler/internal/redisclient"
 	"github.com/JamesDante/idtask-scheduler/models"
+	"github.com/JamesDante/idtask-scheduler/monitor"
 	"github.com/JamesDante/idtask-scheduler/storage"
 	"github.com/JamesDante/idtask-scheduler/utils"
 	"github.com/google/uuid"
@@ -41,6 +42,8 @@ func main() {
 
 	etcdclient.Init()
 	etcd = etcdclient.GetClient()
+
+	monitor.InitSchedulerMetrics()
 
 	//ctx := context.Background()
 
@@ -200,8 +203,10 @@ func schedulingWork(le *LeaderElector) {
 
 			err = rdb.RPush(ctx, workerNode, taskBytes).Err()
 			if err != nil {
+				monitor.SchedulerTasksFailed().Inc()
 				log.Println("Failed to push task to worker:", err)
 			} else {
+				monitor.SchedulerTasksScheduled().Inc()
 				//rdb.LRem(ctx, "processing-queue", 1, res)
 				log.Printf("Task %s scheduled to worker %s\n", task.ID, workerNode)
 			}
