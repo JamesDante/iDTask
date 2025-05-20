@@ -7,9 +7,10 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { apiClient } from "@/lib/api-client";
 import { useEffect, useState } from "react";
 
-import data from "../dashboard/data.json"
 import { TaskTable } from "@/components/task-table";
 import { taskTypes } from "@/lib/task-types";
+
+import data from "../dashboard/data.json"
 
 export default function HomePage() {
   const [tasks, setTasks] = useState(data);
@@ -21,8 +22,8 @@ export default function HomePage() {
   const [tasksList, setTasksList] = useState([]);
 
   const indexOfLastTask = currentPage * tasksPerPage;
-  const indexOfFirstTask = indexOfLastTask - tasksPerPage;
-  const currentTasks = Array.isArray(tasksList) ? tasksList.slice(indexOfFirstTask, indexOfLastTask) : [];
+  //const indexOfFirstTask = indexOfLastTask - tasksPerPage;
+  const currentTasks = Array.isArray(tasksList) ? tasksList : [];
   const totalPages = Math.ceil((total || 0) / tasksPerPage);
 
   const loadTaskList= (page = currentPage)=>{
@@ -104,7 +105,12 @@ export default function HomePage() {
         {Array.from({ length: totalPages }, (_, i) => (
           <button
             key={i}
-            onClick={() => {loadTaskList(i + 1);}}
+            onClick={() => {
+              setCurrentPage(i + 1);
+              setTimeout(() => {
+                loadTaskList(i+1);
+              }, 0); 
+            }}
             className={`px-3 py-1 rounded ${currentPage === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
           >
             {i + 1}

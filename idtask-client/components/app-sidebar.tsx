@@ -48,16 +48,16 @@ const data = {
       url: "tasks",
       icon: IconListDetails,
     },
-    {
-      title: "Analytics",
-      url: "dag",
-      icon: IconChartBar,
-    },
-    {
-      title: "Users",
-      url: "#",
-      icon: IconUsers,
-    },
+    // {
+    //   title: "Analytics",
+    //   url: "dag",
+    //   icon: IconChartBar,
+    // },
+    // {
+    //   title: "Users",
+    //   url: "#",
+    //   icon: IconUsers,
+    // },
   ],
   navClouds: [
     {
@@ -147,10 +147,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={[]} />
         <NavSecondary items={data.navMain}  />
-        <NavSecondary items={data.navSecondary}  />
+        {/* <NavSecondary items={data.navSecondary}  /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        {/* <NavUser user={data.user} /> */}
       </SidebarFooter>
     </Sidebar>
   )
