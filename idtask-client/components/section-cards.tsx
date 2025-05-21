@@ -9,12 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { format } from "date-fns/format";
 
 interface SchedulerCard {
   id: string;
   status: string;
   isLeader: string;
-  duration: number;
+  heart_beat: string;
 }
 
 interface SchedulerCardPros {
@@ -43,7 +44,7 @@ export function SectionCards({ data }: SchedulerCardPros) {
                   Is Leader: {s.isLeader}
                 </div>
                 <div className="text-muted-foreground">
-                  Visitors for the last 6 months
+                  Heartbeat At: {format(new Date(s.heart_beat), "H:mm:ss")}
                 </div>
               </CardFooter>
             </Card>

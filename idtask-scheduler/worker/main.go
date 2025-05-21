@@ -20,10 +20,14 @@ import (
 
 var (
 	//db       *sqlx.DB
-	rdb      *redis.Client
-	ctx      = context.Background()
-	workerId string
+	rdb          *redis.Client
+	ctx          = context.Background()
+	workerId     string
+	failureCount int
+	unHealth     bool
 )
+
+const maxFailures = 3
 
 func main() {
 
@@ -31,9 +35,10 @@ func main() {
 	rdb = redisclient.GetClient()
 
 	storage.Init()
-	//db = storage.GetDB()
 
 	monitor.InitWorkerMetrics()
+
+	unHealth = false
 
 	workerId = generateWorkerID()
 	registry, _ := NewWorkerRegistry([]string{configs.Config.EtcdAddress})
@@ -43,13 +48,15 @@ func main() {
 	}
 	defer registry.Unregister()
 
-	go consumeTasks()
+	go consumeTasks(registry)
 	go pollDelayedTasks()
+
+	go startWorkerHeartbeat(registry, workerId)
 
 	select {}
 }
 
-func consumeTasks() {
+func consumeTasks(registry *WorkerRegistry) {
 	log.Println("Worker started. Waiting for tasks...")
 	for {
 		start := time.Now()
@@ -74,7 +81,7 @@ func consumeTasks() {
 			continue
 		}
 
-		processTask(t, rawTask)
+		processTask(registry, t, rawTask)
 		monitor.WorkerTasksExecuted().Inc()
 		monitor.WorkerTaskExecDuration().Observe(time.Since(start).Seconds())
 	}
@@ -107,7 +114,7 @@ func pollDelayedTasks() {
 	}
 }
 
-func processTask(task models.Task, rawTask string) error {
+func processTask(registry *WorkerRegistry, task models.Task, rawTask string) error {
 	// key：task-executed:<task-id>
 	key := fmt.Sprintf("task-executed:%s", task.ID)
 
@@ -131,8 +138,20 @@ func processTask(task models.Task, rawTask string) error {
 		rdb.LRem(ctx, "processing-queue", 1, rawTask)
 		storage.UpdateTasks(task.ID, "Failed")
 		storage.CreateTaskLogs(task.ID, workerId, "Task Failed")
+
+		failureCount++
+		if failureCount >= maxFailures {
+			log.Printf("❌ Worker %s marked as failed after %d consecutive failures", workerId, failureCount)
+
+			unHealth = true
+		}
+
+		monitor.WorkerTasksFailed().Inc()
 		return fmt.Errorf("task failed: %w", err)
 	}
+
+	unHealth = false
+	failureCount = 0
 
 	log.Printf("🎉 Task %s executed successfully\n", task.ID)
 	return nil
@@ -154,19 +173,34 @@ func executeTask(t models.Task, rawTask string) error {
 	return nil
 }
 
-// func updateTaskExecution(db *sqlx.DB, taskID, status string) {
-// 	_, err := db.Exec(`UPDATE tasks SET status = $1 WHERE id = $2;`, status, taskID)
-// 	if err != nil {
-// 		log.Printf("⚠️ Failed to update task execution: %v\n", err)
-// 	}
-// }
+func startWorkerHeartbeat(registry *WorkerRegistry, workerId string) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 
-// func logTaskExecution(db *sqlx.DB, taskID, executedBy, result string) {
-// 	_, err := db.Exec(`
-//         INSERT INTO task_logs (task_id, executed_by, result)
-//         VALUES ($1, $2, $3)
-//     `, taskID, executedBy, result)
-// 	if err != nil {
-// 		log.Printf("⚠️ Failed to log task execution: %v\n", err)
-// 	}
-// }
+	for range ticker.C {
+		if !unHealth {
+			status := models.WorkerStatus{
+				ID:        workerId,
+				Status:    "ok",
+				HeartBeat: time.Now(),
+			}
+			data, _ := json.Marshal(status)
+			err := registry.Update(workerId, string(data))
+			if err != nil {
+				log.Printf("Failed to refresh heartbeat for worker %s: %v", workerId, err)
+			}
+		} else {
+			status := models.WorkerStatus{
+				ID:        workerId,
+				Status:    "failed",
+				HeartBeat: time.Now(),
+			}
+			data, _ := json.Marshal(status)
+			err := registry.Update(workerId, string(data))
+			if err != nil {
+				log.Printf("Failed to refresh heartbeat for worker %s: %v", workerId, err)
+			}
+
+		}
+	}
+}

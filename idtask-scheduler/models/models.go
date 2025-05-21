@@ -39,14 +39,16 @@ type AIPredictionRequest struct {
 }
 
 type SchedulerStatus struct {
-	ID       string `json:"id"`
-	Status   string `json:"status"`
-	IsLeader string `json:"isLeader"`
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	IsLeader  string    `json:"isLeader"`
+	HeartBeat time.Time `json:"heart_beat"`
 }
 
 type WorkerStatus struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	HeartBeat time.Time `json:"heart_beat"`
 }
 
 type APIResponse struct {

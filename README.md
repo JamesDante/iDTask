@@ -9,7 +9,7 @@ A simplified high-concurrency distributed task scheduler built with Go and Pytho
 * **Redis**: Job queue and fast cache
 * **PostgreSQL**: Task and log storage
 * **Next.js + Tailwind + Shadcn/UI**: Frontend for task monitoring
-* **Prometheus + Grafana**: Monitoring and metrics
+* **Prometheus**: Monitoring and metrics
 
 ## 📐 System Architecture
 

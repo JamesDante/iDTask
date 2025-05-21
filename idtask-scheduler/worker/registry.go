@@ -37,8 +37,9 @@ func (r *WorkerRegistry) Register(address string, ttl time.Duration) error {
 	r.LeaseID = leaseResp.ID
 
 	status := models.WorkerStatus{
-		ID:     address,
-		Status: "ok",
+		ID:        address,
+		Status:    "ok",
+		HeartBeat: time.Now(),
 	}
 
 	jsonBytes, err := json.Marshal(status)
@@ -83,4 +84,14 @@ func (r *WorkerRegistry) Unregister() {
 	r.Client.Delete(context.Background(), r.Key)
 	r.Client.Close()
 	log.Printf("Worker unregistered: %s", r.Key)
+}
+
+// Update updates the status of the specified worker (overwrites the same etcd key)
+func (r *WorkerRegistry) Update(workerID, value string) error {
+	key := fmt.Sprintf("/workers/%s", workerID)
+	_, err := r.Client.Put(context.Background(), key, value, clientv3.WithLease(r.LeaseID))
+	if err != nil {
+		return fmt.Errorf("failed to update worker status: %w", err)
+	}
+	return nil
 }

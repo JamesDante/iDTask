@@ -29,7 +29,13 @@ var (
 	pool    *WorkerPool
 	etcd    *clientv3.Client
 	watcher *WorkerWatcher
-	ctx     = context.Background()
+	status  models.SchedulerStatus
+	leaseID clientv3.LeaseID
+	key     string
+
+	ctx               = context.Background()
+	workerFailures    = make(map[string]int)
+	maxWorkerFailures = 3
 )
 
 func main() {
@@ -53,15 +59,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	status := models.SchedulerStatus{
+	status = models.SchedulerStatus{
 		ID:       fmt.Sprintf("scheduler-%s", instanceID),
 		Status:   "running",
 		IsLeader: "No",
 	}
 
-	key := fmt.Sprintf("scheduler/status/%s", status.ID)
+	key = fmt.Sprintf("scheduler/status/%s", status.ID)
 	data, _ := json.Marshal(status)
-	leaseID, err := etcdclient.RegisterWithTTL(ctx, key, string(data), 10) // TTL 10 sec
+	leaseID, err = etcdclient.RegisterWithTTL(ctx, key, string(data), 10) // TTL 10 sec
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -114,9 +120,10 @@ func main() {
 
 	le.OnResigned = func() {
 		status = models.SchedulerStatus{
-			ID:       fmt.Sprintf("scheduler-%s", instanceID),
-			Status:   "running",
-			IsLeader: "No",
+			ID:        fmt.Sprintf("scheduler-%s", instanceID),
+			Status:    "running",
+			IsLeader:  "No",
+			HeartBeat: time.Now(),
 		}
 
 		if watcher != nil {
@@ -140,6 +147,14 @@ func schedulingWork(le *LeaderElector) {
 	go func() {
 		for le.IsLeader() {
 			log.Println("[Leader] Doing scheduling work...")
+
+			// scheduler heartbeat
+			status.HeartBeat = time.Now()
+			data, _ := json.Marshal(status)
+			err := etcdclient.Update(ctx, key, string(data), leaseID)
+			if err != nil {
+				log.Printf("Failed to update scheduler heartbeat: %v", err)
+			}
 
 			res, err := rdb.BRPopLPush(ctx, "task-queue", "processing-queue", 0).Result()
 			if err != nil {
@@ -180,14 +195,6 @@ func schedulingWork(le *LeaderElector) {
 			}
 
 			workerNode := chooseWorker(aiPrediction)
-			// if workerNode == "" {
-			// 	jobBytes, err := json.Marshal(task)
-			// 	if err != nil {
-			// 		log.Printf("Failed to marshal job: %v", err)
-			// 		return
-			// 	}
-			// 	rdb.RPush(ctx, "task-queue", jobBytes)
-			// }
 
 			taskBytes, err := json.Marshal(task)
 			if err != nil {
@@ -198,17 +205,27 @@ func schedulingWork(le *LeaderElector) {
 			if !pool.Exists(workerNode) {
 				log.Printf("Worker %s not registered or online. Requeue task.", workerNode)
 				rdb.RPush(ctx, "task-queue", taskBytes)
+				monitor.SchedulerTasksFailed().Inc()
 				continue
 			}
 
 			err = rdb.RPush(ctx, workerNode, taskBytes).Err()
 			if err != nil {
-				monitor.SchedulerTasksFailed().Inc()
-				log.Println("Failed to push task to worker:", err)
+				log.Printf("Failed to push task to worker %s: %v", workerNode, err)
+				workerFailures[workerNode]++
+				if workerFailures[workerNode] >= maxWorkerFailures {
+					log.Printf("Worker %s marked as unhealthy after %d failures, removing from pool", workerNode, maxWorkerFailures)
+					pool.Remove(workerNode)
+					delete(workerFailures, workerNode)
+				}
+				rdb.RPush(ctx, "task-queue", taskBytes)
+				rdb.LRem(ctx, "processing-queue", 1, res)
+
 			} else {
 				monitor.SchedulerTasksScheduled().Inc()
 				//rdb.LRem(ctx, "processing-queue", 1, res)
 				log.Printf("Task %s scheduled to worker %s\n", task.ID, workerNode)
+				workerFailures[workerNode] = 0
 			}
 		}
 	}()
@@ -264,6 +281,23 @@ func chooseWorker(prediction *pb.PredictResponse) string {
 	selectedWorker := ""
 
 	for _, w := range pool.workers {
+		// skip failed workers
+		key := fmt.Sprintf("/workers/%s", w)
+		resp, err := etcd.Get(ctx, key)
+		if err != nil || len(resp.Kvs) == 0 {
+			log.Printf("Failed to get worker %s status: %v", w, err)
+			continue
+		}
+		var ws models.WorkerStatus
+		if err := json.Unmarshal(resp.Kvs[0].Value, &ws); err != nil {
+			log.Printf("Failed to parse worker %s status: %v", w, err)
+			continue
+		}
+		if ws.Status == "failed" {
+			log.Printf("Skip failed worker: %s", w)
+			continue
+		}
+
 		queueLen, err := rdb.LLen(ctx, w).Result()
 		if err != nil {
 			log.Printf("Failed to get queue length for worker %s: %v", w, err)
@@ -281,14 +315,38 @@ func chooseWorker(prediction *pb.PredictResponse) string {
 		return selectedWorker
 	}
 
-	worker, err := pool.Next()
-	if err != nil {
-		log.Println("No available worker, fallback failed")
-		return ""
-	}
+	// worker, err := pool.Next()
+	// if err != nil {
+	// 	log.Println("No available worker, fallback failed")
+	// 	return ""
+	// }
 
-	log.Printf("Fallback to round-robin worker: %s", worker)
-	return worker
+	// fallback: round robin, skip failed worker
+	for {
+		worker, err := pool.Next()
+		if err != nil {
+			log.Println("No available worker, fallback failed")
+			return ""
+		}
+
+		key := fmt.Sprintf("/workers/%s", worker)
+		resp, err := etcd.Get(ctx, key)
+		if err != nil || len(resp.Kvs) == 0 {
+			log.Printf("Failed to get worker %s status: %v", worker, err)
+			continue
+		}
+		var ws models.WorkerStatus
+		if err := json.Unmarshal(resp.Kvs[0].Value, &ws); err != nil {
+			log.Printf("Failed to parse worker %s status: %v", worker, err)
+			continue
+		}
+		if ws.Status == "failed" {
+			log.Printf("Skip failed worker: %s", worker)
+			continue
+		}
+		log.Printf("Fallback to round-robin worker: %s", worker)
+		return worker
+	}
 }
 
 func parseTask(taskstr string) *models.Task {
