@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/JamesDante/idtask-scheduler/configs"
@@ -21,6 +21,8 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/go-redis/redis/v8"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var (
@@ -36,6 +38,12 @@ var (
 	ctx               = context.Background()
 	workerFailures    = make(map[string]int)
 	maxWorkerFailures = 3
+	json              = jsoniter.ConfigFastest
+	taskPool          = sync.Pool{
+		New: func() any {
+			return new(models.Task)
+		},
+	}
 )
 
 func main() {
@@ -349,12 +357,23 @@ func chooseWorker(prediction *pb.PredictResponse) string {
 	}
 }
 
+// func parseTask(taskstr string) *models.Task {
+// 	var t models.Task
+// 	err := json.Unmarshal([]byte(taskstr), &t)
+// 	if err != nil {
+// 		log.Printf("Invalid task JSON: %v", err)
+// 		return nil
+// 	}
+// 	return &t
+// }
+
 func parseTask(taskstr string) *models.Task {
-	var t models.Task
-	err := json.Unmarshal([]byte(taskstr), &t)
+	t := taskPool.Get().(*models.Task)
+	err := json.Unmarshal([]byte(taskstr), t)
 	if err != nil {
 		log.Printf("Invalid task JSON: %v", err)
+		taskPool.Put(t)
 		return nil
 	}
-	return &t
+	return t
 }

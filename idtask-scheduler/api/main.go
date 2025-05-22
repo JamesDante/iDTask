@@ -104,14 +104,18 @@ func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	t.ExpireAt = &expireAt
 
 	// Save to DB
-	result := storage.CreateTask(&t)
-
-	err := result.Scan(&t.CreatedAt)
+	createdAt, err := storage.CreateTask(&t)
 	if err != nil {
-		log.Fatalf("Failed to insert task: %v", err)
-		http.Error(w, "DB error", http.StatusInternalServerError)
+		log.Printf("Failed to insert task: %v", err)
 		return
 	}
+
+	// err = result.Scan(&t.CreatedAt)
+	// if err != nil {
+	// 	log.Fatalf("Failed to insert task: %v", err)
+	// 	http.Error(w, "DB error", http.StatusInternalServerError)
+	// 	return
+	// }
 
 	// Push to Redis queue
 	jobBytes, err := json.Marshal(t)

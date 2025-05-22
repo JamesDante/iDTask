@@ -2,6 +2,7 @@ package storage
 
 import (
 	"log"
+	"time"
 
 	"github.com/JamesDante/idtask-scheduler/configs"
 	"github.com/JamesDante/idtask-scheduler/models"
@@ -17,6 +18,10 @@ func Init() {
 	if err != nil {
 		log.Fatalf("Postgres error: %v", err)
 	}
+
+	db.SetMaxOpenConns(20)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Minute * 5)
 
 	createTables()
 }
@@ -51,13 +56,13 @@ func createTables() {
 	db.MustExec(schema)
 }
 
-func CreateTask(t *models.Task) *sqlx.Row {
-	result := db.QueryRowx(
+func CreateTask(t *models.Task) (time.Time, error) {
+	var createdAt time.Time
+	err := db.QueryRowx(
 		"INSERT INTO tasks(id, type, payload, status, expire_at) VALUES($1, $2, $3, $4, $5) RETURNING created_at",
 		t.ID, t.Type, t.Payload, t.Status, t.ExpireAt,
-	)
-
-	return result
+	).Scan(&createdAt)
+	return createdAt, err
 }
 
 func GetTasksCount() int {

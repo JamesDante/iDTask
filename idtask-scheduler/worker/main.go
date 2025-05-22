@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/JamesDante/idtask-scheduler/configs"
@@ -16,6 +16,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/go-redis/redis/v8"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var (
@@ -25,6 +27,12 @@ var (
 	workerId     string
 	failureCount int
 	unHealth     bool
+	json         = jsoniter.ConfigFastest
+	taskPool     = sync.Pool{
+		New: func() any {
+			return new(models.Task)
+		},
+	}
 )
 
 const maxFailures = 3
@@ -36,7 +44,7 @@ func main() {
 
 	storage.Init()
 
-	monitor.InitWorkerMetrics()
+	//monitor.InitWorkerMetrics()
 
 	unHealth = false
 
@@ -72,16 +80,21 @@ func consumeTasks(registry *WorkerRegistry) {
 
 		log.Printf("Raw task from Redis: %s\n", res[1])
 
-		var t models.Task
+		t := taskPool.Get().(*models.Task)
+		*t = models.Task{}
+
+		defer taskPool.Put(t)
+
+		//var t models.Task
 		rawTask := res[1]
-		err = json.Unmarshal([]byte(res[1]), &t)
+		err = json.Unmarshal([]byte(res[1]), t)
 		if err != nil {
 			log.Printf("Invalid task JSON: %v", err)
 			monitor.WorkerTasksFailed().Inc()
 			continue
 		}
 
-		processTask(registry, t, rawTask)
+		processTask(registry, *t, rawTask)
 		monitor.WorkerTasksExecuted().Inc()
 		monitor.WorkerTaskExecDuration().Observe(time.Since(start).Seconds())
 	}
@@ -178,29 +191,19 @@ func startWorkerHeartbeat(registry *WorkerRegistry, workerId string) {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if !unHealth {
-			status := models.WorkerStatus{
-				ID:        workerId,
-				Status:    "ok",
-				HeartBeat: time.Now(),
-			}
-			data, _ := json.Marshal(status)
-			err := registry.Update(workerId, string(data))
-			if err != nil {
-				log.Printf("Failed to refresh heartbeat for worker %s: %v", workerId, err)
-			}
-		} else {
-			status := models.WorkerStatus{
-				ID:        workerId,
-				Status:    "failed",
-				HeartBeat: time.Now(),
-			}
-			data, _ := json.Marshal(status)
-			err := registry.Update(workerId, string(data))
-			if err != nil {
-				log.Printf("Failed to refresh heartbeat for worker %s: %v", workerId, err)
-			}
+		statusStr := "ok"
+		if unHealth {
+			statusStr = "failed"
+		}
 
+		status := models.WorkerStatus{
+			ID:        workerId,
+			Status:    statusStr,
+			HeartBeat: time.Now(),
+		}
+		data, _ := json.Marshal(status)
+		if err := registry.Update(workerId, string(data)); err != nil {
+			log.Printf("Failed to refresh heartbeat for worker %s: %v", workerId, err)
 		}
 	}
 }

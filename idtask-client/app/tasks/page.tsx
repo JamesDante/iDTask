@@ -101,22 +101,26 @@ export default function HomePage() {
         </button>
       </div>
       <TaskTable data={currentTasks} />
-      <div className="flex justify-center mt-4 space-x-2">
-        {Array.from({ length: totalPages }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => {
-              setCurrentPage(i + 1);
-              setTimeout(() => {
-                loadTaskList(i+1);
-              }, 0); 
-            }}
-            className={`px-3 py-1 rounded ${currentPage === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-          >
-            {i + 1}
-          </button>
-        ))}
-      </div>
+<div className="flex justify-center mt-4 space-x-2">
+  {Array.from({ length: totalPages }, (_, i) => i + 1)
+    .filter(page => {
+      const start = Math.max(1, currentPage - 4)
+      const end = Math.min(totalPages, start + 9)
+      return page >= start && page <= end
+    })
+    .map((page) => (
+      <button
+        key={page}
+        onClick={() => {
+          setCurrentPage(page)
+          setTimeout(() => loadTaskList(page), 0)
+        }}
+        className={`px-3 py-1 rounded ${currentPage === page ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+      >
+        {page}
+      </button>
+    ))}
+</div>
     </main>
     </SidebarInset>
   </SidebarProvider>
