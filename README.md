@@ -38,6 +38,7 @@ graph LR
 * Prometheus metrics endpoint
 * Delayed task queue via Redis ZSET
 * RESTful APIs with CORS support
+* Horizontally scalable worker model
 
 ## 🛠️ How to Run
 
@@ -54,12 +55,6 @@ cd ai-predict-service && python src/server.py
 # 4. Launch frontend
 cd idtask-client && npm install && npm run dev
 ```
-
-## 📊 Performance
-
-* 100k+ tasks per minute simulated load
-* Sub-ms latency queue polling
-* Horizontally scalable worker model
 
 ## 🚀 Performance Benchmark
 
