@@ -67,6 +67,7 @@ Tested with [`wrk`](https://github.com/wg/wrk):
 
 ```bash
 wrk -t12 -c400 -d30s -s post.lua http://localhost:8080/tasks
+```
 
 ### ⚡️ Throughput
 
