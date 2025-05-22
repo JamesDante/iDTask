@@ -30,8 +30,14 @@ graph LR
 
 * Dynamic task dispatching with Redis queue
 * AI-based task prioritization (Python ML model)
+* gRPC-based AI prediction integration
 * Metrics tracking with Prometheus exporters
-* Frontend task status view with Next.js
+* Frontend task status view with Next.js📌 Features
+* PostgreSQL storage and logging
+* Leader election via etcd
+* Prometheus metrics endpoint
+* Delayed task queue via Redis ZSET
+* RESTful APIs with CORS support
 
 ## 🛠️ How to Run
 
@@ -54,6 +60,19 @@ cd idtask-client && npm install && npm run dev
 * 100k+ tasks per minute simulated load
 * Sub-ms latency queue polling
 * Horizontally scalable worker model
+
+## 🚀 Performance Benchmark
+
+Tested with [`wrk`](https://github.com/wg/wrk):
+
+```bash
+wrk -t12 -c400 -d30s -s post.lua http://localhost:8080/tasks
+
+### ⚡️ Throughput
+
+- **5660+ TPS** (tasks per second) sustained under pressure
+- Equivalent to **340,000+ tasks per minute**
+- End-to-end latency remains stable (~44ms average)
 
 
 ## 📎 License

@@ -67,7 +67,7 @@ func main() {
 func consumeTasks(registry *WorkerRegistry) {
 	log.Println("Worker started. Waiting for tasks...")
 	for {
-		start := time.Now()
+		//start := time.Now()
 		res, err := rdb.BLPop(ctx, 0*time.Second, workerId).Result()
 		if err != nil {
 			log.Printf("Redis error: %v", err)
@@ -90,13 +90,13 @@ func consumeTasks(registry *WorkerRegistry) {
 		err = json.Unmarshal([]byte(res[1]), t)
 		if err != nil {
 			log.Printf("Invalid task JSON: %v", err)
-			monitor.WorkerTasksFailed().Inc()
+			//monitor.WorkerTasksFailed().Inc()
 			continue
 		}
 
 		processTask(registry, *t, rawTask)
-		monitor.WorkerTasksExecuted().Inc()
-		monitor.WorkerTaskExecDuration().Observe(time.Since(start).Seconds())
+		//monitor.WorkerTasksExecuted().Inc()
+		//monitor.WorkerTaskExecDuration().Observe(time.Since(start).Seconds())
 	}
 }
 
