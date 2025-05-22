@@ -66,7 +66,7 @@ cd idtask-client && npm install && npm run dev
 Tested with [`wrk`](https://github.com/wg/wrk):
 
 ```bash
-wrk -t12 -c400 -d30s -s post.lua http://localhost:8080/tasks
+wrk -t12 -c400 -d30s -s test.lua http://localhost:8080/tasks
 ```
 
 ### ⚡️ Throughput
