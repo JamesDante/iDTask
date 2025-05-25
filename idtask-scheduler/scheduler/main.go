@@ -117,9 +117,10 @@ func main() {
 			if !pool.Exists(worker.ID) {
 				log.Println("add worker:", worker.ID)
 				pool.Add(worker.ID)
-			} else {
-				log.Println("worker already exists:", worker.ID)
 			}
+			// else {
+			// 	log.Println("worker already exists:", worker.ID)
+			// }
 			//log.Println("add worker:", worker.ID)
 			//pool.Add(worker.ID)
 		}

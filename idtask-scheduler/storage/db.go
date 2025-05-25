@@ -113,6 +113,11 @@ func GetTasks(req *models.APIListRequest) ([]models.Task, error) {
 }
 
 func UpdateTasks(taskID, status string) {
+	if db == nil {
+		log.Println("⚠️ Database connection is not initialized")
+		return
+	}
+
 	_, err := db.Exec(`UPDATE tasks SET status = $1 WHERE id = $2;`, status, taskID)
 	if err != nil {
 		log.Printf("⚠️ Failed to update task execution: %v\n", err)

@@ -47,14 +47,14 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
 
-  ai:
-    build:
-      context: ./ai-predict-service
-      dockerfile: Dockerfile
-    container_name: ai-predict-service
-    ports:
-      - "50051:50051"
-    restart: unless-stopped
+  # ai:
+  #   build:
+  #     context: ./ai-predict-service
+  #     dockerfile: Dockerfile
+  #   container_name: ai-predict-service
+  #   ports:
+  #     - "50051:50051"
+  #   restart: unless-stopped
 
 volumes:
   etcddata:

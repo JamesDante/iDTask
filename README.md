@@ -70,6 +70,30 @@ cd idtask-scheduler && go run ./worker
 cd idtask-client && npm install && npm run dev
 ```
 
+### 🚀 Run All Services (Backend + AI + Frontend)
+```bash
+make dev
+```
+
+This will:
+- Start Docker services (Redis, PostgreSQL, etc.)
+- Install Python dependencies
+- Generate proto files
+- Launch backend services (Go)
+- Launch AI prediction service (Python)
+- Launch frontend (Next.js)
+
+### 🔄 Run Services Individually
+
+```bash
+make api         # Run Go API service
+make scheduler   # Run Go scheduler service
+make worker      # Run Go worker service
+make ai          # Run Python AI prediction server
+make client      # Run frontend (Next.js)
+```
+
+
 ## 🚀 Performance Benchmark
 
 Tested with [`wrk`](https://github.com/wg/wrk):

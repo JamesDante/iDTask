@@ -2,8 +2,12 @@ import joblib
 import numpy as np
 import os
 
-priority_model = joblib.load("./models/priority_rf.pkl")
-time_model = joblib.load("./models/time_rf.pkl")
+base_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(base_dir, "../models/priority_rf.pkl")
+time_model_path = os.path.join(base_dir, "../models/time_rf.pkl")
+
+priority_model = joblib.load(model_path)
+time_model = joblib.load(time_model_path)
 
 def predict_priority_and_time(metadata: dict) -> tuple[int, float]:
 
