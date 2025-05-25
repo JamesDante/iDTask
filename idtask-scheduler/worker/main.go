@@ -44,6 +44,7 @@ func main() {
 
 	storage.Init()
 
+	//TODO: initialize monitoring
 	//monitor.InitWorkerMetrics()
 
 	unHealth = false

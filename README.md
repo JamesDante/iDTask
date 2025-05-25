@@ -10,6 +10,9 @@ A simplified high-concurrency distributed task scheduler built with Go and Pytho
 * **PostgreSQL**: Task and log storage
 * **Next.js + Tailwind + Shadcn/UI**: Frontend for task monitoring
 * **Prometheus**: Monitoring and metrics
+* **gRPC**: Inter-service communication between Go and Python services
+* **etcd**: Distributed coordination and leader election
+* **Docker Compose**: Local orchestration of services
 
 ## 📐 System Architecture
 
@@ -54,7 +57,13 @@ cd idtask-scheduler && go run api/main.go
 # 3. Start Python AI module
 cd ai-predict-service && python src/server.py
 
-# 4. Launch frontend
+# 4. Run Scheduler
+cd idtask-scheduler && go run scheduler/main.go
+
+# 5. Run Worker(s)
+cd idtask-scheduler && go run worker/main.go
+
+# 6. Launch frontend
 cd idtask-client && npm install && npm run dev
 ```
 
