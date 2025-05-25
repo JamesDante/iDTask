@@ -39,10 +39,14 @@ const maxFailures = 3
 
 func main() {
 
+	configs.InitConfig()
+
 	redisclient.Init()
 	rdb = redisclient.GetClient()
 
 	storage.Init()
+
+	//configs.InitConfig()
 
 	//TODO: initialize monitoring
 	//monitor.InitWorkerMetrics()

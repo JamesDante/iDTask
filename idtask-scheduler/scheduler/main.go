@@ -48,6 +48,8 @@ var (
 
 func main() {
 
+	configs.InitConfig()
+
 	redisclient.Init()
 	rdb = redisclient.GetClient()
 
@@ -57,7 +59,12 @@ func main() {
 	etcdclient.Init()
 	etcd = etcdclient.GetClient()
 
+	// Connect Postgres
+	storage.Init()
+
 	monitor.InitSchedulerMetrics()
+
+	//configs.InitConfig()
 
 	//ctx := context.Background()
 
@@ -183,6 +190,13 @@ func schedulingWork(le *LeaderElector) {
 				continue
 			}
 
+			if task.ExpireAt != nil && time.Now().After(*task.ExpireAt) {
+				log.Printf("Task %s is expired, skipping\n", task.ID)
+				rdb.LRem(ctx, "processing-queue", 1, res)
+				storage.UpdateTasks(task.ID, "Expired")
+				continue
+			}
+
 			meta := map[string]string{
 				"TaskId":   task.ID,
 				"TaskType": task.Type,
@@ -192,13 +206,6 @@ func schedulingWork(le *LeaderElector) {
 			aiPrediction, err := aic.Predict(task.ID, meta)
 			if err != nil {
 				log.Println("Error AI Predict task:", err)
-				continue
-			}
-
-			if task.ExpireAt != nil && time.Now().After(*task.ExpireAt) {
-				log.Printf("Task %s is expired, skipping\n", task.ID)
-				rdb.LRem(ctx, "processing-queue", 1, res)
-				storage.UpdateTasks(task.ID, "Expired")
 				continue
 			}
 

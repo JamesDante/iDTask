@@ -25,6 +25,8 @@ var (
 )
 
 func main() {
+	configs.InitConfig()
+
 	// Connect Postgres
 	storage.Init()
 
