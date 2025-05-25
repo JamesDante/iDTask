@@ -1,9 +1,19 @@
 PYTHON_VENV = ai-predict-service/venv/bin/python
+PYTHON := $(shell command -v python3)
 
-install:
+# install:
+# 	$(PYTHON_VENV) -m pip install --upgrade pip
+# 	$(PYTHON_VENV) -m pip install -r ai-predict-service/requirements.txt
+# 	@echo "✅ Python dependencies installed"
+
+# Set up Python virtual environment
+venv:
+	@echo "🐍 Setting up Python virtual environment..."
+	cd ai-predict-service && \
+		[ -d venv ] || $(PYTHON) -m venv venv
 	$(PYTHON_VENV) -m pip install --upgrade pip
 	$(PYTHON_VENV) -m pip install -r ai-predict-service/requirements.txt
-	@echo "✅ Python dependencies installed"
+	@echo "✅ Python venv created and dependencies installed"
 
 up:
 	docker compose up -d
@@ -13,7 +23,7 @@ up:
 down:
 	docker compose down
 
-proto: install
+proto: venv
 	mkdir -p ai-predict-service/src/proto
 	touch ai-predict-service/src/proto/__init__.py
 	protoc \
@@ -46,7 +56,7 @@ client:
 
 OS := $(shell uname)
 
-dev: up proto
+dev: venv up proto
 	@echo "Starting all services..."
 
 ifeq ($(OS), Darwin)  # macOS
