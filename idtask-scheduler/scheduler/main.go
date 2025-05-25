@@ -113,8 +113,15 @@ func main() {
 		watcher.OnAdd = func(worker models.WorkerStatus) {
 			le.mu.Lock()
 			defer le.mu.Unlock()
-			log.Println("add worker:", worker.ID)
-			pool.Add(worker.ID)
+
+			if !pool.Exists(worker.ID) {
+				log.Println("add worker:", worker.ID)
+				pool.Add(worker.ID)
+			} else {
+				log.Println("worker already exists:", worker.ID)
+			}
+			//log.Println("add worker:", worker.ID)
+			//pool.Add(worker.ID)
 		}
 
 		watcher.OnDelete = func(worker models.WorkerStatus) {
