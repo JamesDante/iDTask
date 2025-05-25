@@ -62,6 +62,8 @@ func main() {
 	defer registry.Unregister()
 
 	go consumeTasks(registry)
+
+	//TODO: start consuming delayed tasks
 	go pollDelayedTasks()
 
 	go startWorkerHeartbeat(registry, workerId)
