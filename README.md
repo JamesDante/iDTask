@@ -41,7 +41,6 @@ graph LR
 * PostgreSQL storage and logging
 * Leader election via etcd
 * Prometheus metrics endpoint
-* Delayed task queue via Redis ZSET
 * RESTful APIs with CORS support
 * Horizontally scalable worker model
 
