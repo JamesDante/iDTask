@@ -21,7 +21,9 @@ graph LR
   C --> E[AI Module - Python ML]
   C --> F[PostgreSQL - Task DB]
   C --> G[Redis - Queue and Cache]
+  C --> I[etcd - Service Registry & Leader Election]
   D --> G
+  D --> I
   C --> H[Monitoring - Prometheus]
   D --> H
 ```
