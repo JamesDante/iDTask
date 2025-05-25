@@ -47,28 +47,7 @@ graph LR
 
 ## 🛠️ How to Run
 
-```bash
-# 0. Copy environment configuration
-cp .env.example .env
-
-# 1. Start Redis and Postgres (Docker recommended)
-docker compose up -d
-
-# 2. Run Go services
-cd idtask-scheduler && go run api/main.go
-
-# 3. Start Python AI module
-cd ai-predict-service && python src/server.py
-
-# 4. Run Scheduler
-cd idtask-scheduler && go run ./scheduler
-
-# 5. Run Worker(s)
-cd idtask-scheduler && go run ./worker
-
-# 6. Launch frontend
-cd idtask-client && npm install && npm run dev
-```
+This project provides a `Makefile` to simplify common tasks.
 
 ### 🚀 Run All Services (Backend + AI + Frontend)
 ```bash
