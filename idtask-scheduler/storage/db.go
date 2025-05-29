@@ -40,6 +40,7 @@ func createTables() {
 		retries  INT,
 		max_retry INT,
 		priority INT DEFAULT 0,
+		scheduled_at TIMESTAMP,
 		expire_at TIMESTAMP,
 		created_at TIMESTAMP DEFAULT NOW()
 	);
@@ -54,6 +55,11 @@ func createTables() {
 	`
 
 	db.MustExec(schema)
+
+	_, err := db.Exec(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP;`)
+	if err != nil {
+		log.Printf("⚠️ Failed to ensure 'scheduled_at' column: %v", err)
+	}
 }
 
 func CreateTask(t *models.Task) (time.Time, error) {
