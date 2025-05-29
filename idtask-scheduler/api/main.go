@@ -81,6 +81,75 @@ func handleTaskList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp, "")
 }
 
+func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var t models.Task
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	payloadBytes, _ := json.Marshal(t.Payload)
+	t.Payload = string(payloadBytes)
+
+	t.ID = uuid.New().String()
+	createdAt := time.Now()
+	//expireAt := time.Now().AddDate(0, 0, 1)
+	t.CreatedAt = &createdAt
+	//t.ExpireAt = &expireAt
+
+	if t.ExpireAt != nil && t.ExpireAt.Before(time.Now()) {
+		http.Error(w, "Task is already expired", http.StatusBadRequest)
+		return
+	}
+
+	createdAt, err := storage.CreateTask(&t)
+	if err != nil {
+		log.Printf("Failed to insert task: %v", err)
+		return
+	}
+
+	taskBytes, err := json.Marshal(t)
+	if err != nil {
+		http.Error(w, "Failed to marshal task", http.StatusInternalServerError)
+		return
+	}
+
+	delayUnix := t.ScheduledAt.Unix()
+
+	if err := rdb.ZAdd(ctx, "delayed-tasks", &redis.Z{
+		Score:  float64(delayUnix),
+		Member: taskBytes,
+	}).Err(); err != nil {
+		http.Error(w, "Failed to enqueue delayed task", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"delayed task accepted"}`))
+}
+
+// func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
+// 	if r.Method != http.MethodPost {
+// 		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+// 		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
+// 		return
+// 	}
+
+// 	var t models.Task
+// 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+// 		//http.Error(w, "Invalid JSON", http.StatusBadRequest)
+// 		writeJSON(w, http.StatusBadRequest, nil, "Invalid JSON")
+// 		return
+// 	}
+
+// 	_ = enqueueDelayedTask(t, 5*time.Second)
+// }
+
 func handleTaskSubmit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
@@ -187,34 +256,17 @@ func getSchedulerStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, statuses, "")
 }
 
-func handleDelayedTaskSubmit(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		//http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-		writeJSON(w, http.StatusMethodNotAllowed, nil, "Only POST allowed")
-		return
-	}
+// func enqueueDelayedTask(task models.Task, delay time.Duration) error {
+// 	jobBytes, err := json.Marshal(task)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	var t models.Task
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		//http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		writeJSON(w, http.StatusBadRequest, nil, "Invalid JSON")
-		return
-	}
-
-	_ = enqueueDelayedTask(t, 5*time.Second)
-}
-
-func enqueueDelayedTask(task models.Task, delay time.Duration) error {
-	jobBytes, err := json.Marshal(task)
-	if err != nil {
-		return err
-	}
-
-	return rdb.ZAdd(ctx, "delayed_tasks", &redis.Z{
-		Score:  float64(time.Now().Add(delay).Unix()),
-		Member: jobBytes,
-	}).Err()
-}
+// 	return rdb.ZAdd(ctx, "delayed-tasks", &redis.Z{
+// 		Score:  float64(time.Now().Add(delay).Unix()),
+// 		Member: jobBytes,
+// 	}).Err()
+// }
 
 // middleware
 func withCORS(h http.HandlerFunc) http.HandlerFunc {

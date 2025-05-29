@@ -139,6 +139,7 @@ func main() {
 
 		schedulingWork(le)
 		go startProcessingQueueWatcher()
+		go pollDelayedTasks()
 	}
 
 	le.OnResigned = func() {
@@ -391,4 +392,21 @@ func parseTask(taskstr string) *models.Task {
 		return nil
 	}
 	return t
+}
+
+func pollDelayedTasks() {
+	ticker := time.NewTicker(5 * time.Second)
+	for range ticker.C {
+		now := time.Now().Unix()
+		tasks, _ := rdb.ZRangeByScore(ctx, "delayed-tasks", &redis.ZRangeBy{
+			Min: "-inf",
+			Max: fmt.Sprintf("%d", now),
+		}).Result()
+
+		for _, t := range tasks {
+			rdb.LPush(ctx, "task-queue", t)
+			rdb.ZRem(ctx, "delayed-tasks", t)
+			log.Printf("[delayed] moved task to queue: %v", t)
+		}
+	}
 }

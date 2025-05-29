@@ -6,17 +6,18 @@ import (
 )
 
 type Task struct {
-	ID         string         `db:"id" json:"id"`
-	Type       string         `db:"type" json:"type"`
-	Payload    string         `db:"payload" json:"payload"`
-	Retries    sql.NullInt64  `db:"retries" json:"retries"`
-	Status     string         `db:"status" json:"status"`
-	MaxRetry   sql.NullInt64  `db:"max_retry" json:"max_retry"`
-	CreatedAt  *time.Time     `db:"created_at" json:"created_at"`
-	ExpireAt   *time.Time     `db:"expire_at" json:"expire_at"`
-	Priority   sql.NullInt64  `db:"priority" json:"priority"`
-	ExecutedBy sql.NullString `db:"executed_by" json:"executed_by"`
-	ExecutedAt *time.Time     `db:"executed_at" json:"executed_at"`
+	ID          string         `db:"id" json:"id"`
+	Type        string         `db:"type" json:"type"`
+	Payload     string         `db:"payload" json:"payload"`
+	Retries     sql.NullInt64  `db:"retries" json:"retries"`
+	Status      string         `db:"status" json:"status"`
+	MaxRetry    sql.NullInt64  `db:"max_retry" json:"max_retry"`
+	CreatedAt   *time.Time     `db:"created_at" json:"created_at"`
+	ExpireAt    *time.Time     `db:"expire_at" json:"expire_at"`
+	Priority    sql.NullInt64  `db:"priority" json:"priority"`
+	ExecutedBy  sql.NullString `db:"executed_by" json:"executed_by"`
+	ExecutedAt  *time.Time     `db:"executed_at" json:"executed_at"`
+	ScheduledAt *time.Time     `db:"scheduled_at" json:"scheduled_at"`
 }
 
 type TaskLogs struct {
