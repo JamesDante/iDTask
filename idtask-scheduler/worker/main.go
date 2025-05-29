@@ -63,9 +63,6 @@ func main() {
 
 	go consumeTasks(registry)
 
-	//TODO: start consuming delayed tasks
-	//go pollDelayedTasks()
-
 	go startWorkerHeartbeat(registry, workerId)
 
 	select {}
@@ -111,28 +108,6 @@ func generateWorkerID() string {
 	host, _ := os.Hostname()
 	return fmt.Sprintf("worker-%s-%s", host, uuid.New().String()[:6])
 }
-
-// func pollDelayedTasks() {
-// 	ticker := time.NewTicker(1 * time.Second)
-// 	for range ticker.C {
-// 		now := time.Now().Unix()
-// 		tasks, err := rdb.ZRangeByScore(ctx, "delayed_tasks", &redis.ZRangeBy{
-// 			Min:   "-inf",
-// 			Max:   fmt.Sprintf("%d", now),
-// 			Count: 10,
-// 		}).Result()
-// 		if err != nil {
-// 			log.Println("Polling error:", err)
-// 			continue
-// 		}
-// 		for _, taskStr := range tasks {
-// 			var task models.Task
-// 			_ = json.Unmarshal([]byte(taskStr), &task)
-// 			rdb.ZRem(ctx, "delayed_tasks", taskStr)
-// 			rdb.LPush(ctx, "task_queue", taskStr)
-// 		}
-// 	}
-// }
 
 func processTask(registry *WorkerRegistry, task models.Task, rawTask string) error {
 	// key：task-executed:<task-id>
